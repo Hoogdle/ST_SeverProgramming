@@ -33,10 +33,11 @@ void* utility(void *arg){
 // 함수의 편리를 위해 전역변수 선언 
 int player[MAX_SOCKET]; // 플레이어 소켓 
 int player_num = 0; // 플레이어 숫자 
+int listen_socket; 
 
 int main(int argc, char* argv[]){
+    int length;
     struct sockaddr_in addr;
-    int listen_socket; 
     pthread_t thread;
     fd_set fds;
     char msg[MAX_LENGTH];
@@ -65,18 +66,25 @@ int main(int argc, char* argv[]){
         if(FD_ISSET(listen_socket, &fds)){ // 접속을 담당하는 소켓에 1이 세팅 => 어떤 사용자가 서버에 접속함
         // 사용자의 접속이 없었다면 위 if문에서 listen_socket을 검사했을 때 FD_NUM = 0, 따라서 if문에 걸리지 않고 다음 블럭으로 넘어감. 
             player_socket_num = accept(listen_socket,(struct sockaddr*)&addr, &struct_len); // 해당 사용자의 FD_NUM을 player_socket_num에 accpet() 인자로 전달한 addr에는 주소를 받음 
-            if(accept_data == -1){error("accept error");}
+            if(player_socket_num == -1){error("accept error");}
             printf("new player\n");
             player_num++;
             add_player(player_num,&addr); // 사용자 추가 부분 => player_socket_num을 player 소켓 배열에 저장, 주소 저장 
-            }
         }
         
+        
         for(int i=0; i<player_num; ++i){
-            read(player_socket_num,msg,sizeof(msg));
+            if(FD_ISSET(player[i],&fds)){
 
+            length = read(player_socket_num,msg,sizeof(msg));
+            msg[length] = 0; // 종료문자처리
+            for(int j=0; j<player_num; ++j) write(player[j],msg,length);
+            }
+        }
+        strcpy(msg,"\0");
+        length = 0;
+    }
 }
-
 
 int  tcp_listen(int host, int port, int backlog) {
     int sd;
@@ -109,7 +117,7 @@ int max_socket_num(){
     return max + 1; // +1로 전달해야 원하는 길이까지 확인가능 
 }
 
-int add_player(int socket_num, struct sockaddr_in *client_addr){
+void add_player(int socket_num, struct sockaddr_in *client_addr){
     char buf[20]; // 주소를 저장할 buf 
     inet_ntop(AF_INET, &client_addr->sin_addr, buf, sizeof(buf)); // 네트워크 정보(빅 인디언 이진데이터) => AF_INET 프로토콜(IPV4)로 변환 
     player[player_num] = socket_num;
