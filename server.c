@@ -74,7 +74,7 @@ int main(int argc, char* argv[]){
         for(int i=0; i<player_num; ++i){
             if(FD_ISSET(player[i],&fds)){
 
-            length = read(player_socket_num,msg,sizeof(msg));
+            length = read(player[i],msg,sizeof(msg));
             msg[length] = 0; // 종료문자처리
             printf("input str : %s\n",msg);
             for(int j=0; j<player_num; ++j) write(player[j],msg,length);
