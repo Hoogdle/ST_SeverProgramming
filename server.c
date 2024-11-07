@@ -54,6 +54,7 @@ int main(int argc, char* argv[]){
     listen_socket = tcp_listen(INADDR_ANY, atoi(argv[1]), 5); // 사용자 '접속' 소켓 
     socket_max = listen_socket;
     //pthread_create(&thread, NULL, utility, (void *)NULL);
+    printf("Hello Server!\n");
     while(1){
         FD_ZERO(&fds); // 모든 FD_NUM에 대하여 0으로 세팅 
         FD_SET(listen_socket, &fds); // FD_SET은 select에서 '검사할' FD_NUM을 세팅 
@@ -68,11 +69,10 @@ int main(int argc, char* argv[]){
             player_socket_num = accept(listen_socket,(struct sockaddr*)&addr, &struct_len); // 해당 사용자의 FD_NUM을 player_socket_num에 accpet() 인자로 전달한 addr에는 주소를 받음 
             if(player_socket_num == -1){error("accept error");}
             printf("new player\n");
-            player_num++;
             add_player(player_num,&addr); // 사용자 추가 부분 => player_socket_num을 player 소켓 배열에 저장, 주소 저장 
         }
         
-        
+        printf("!\n"); 
         for(int i=0; i<player_num; ++i){
             if(FD_ISSET(player[i],&fds)){
 

@@ -31,7 +31,7 @@ int main(int argc, char* argv[]){
         FD_SET(s,&fds); // 소켓 SET
         if(select(max_socket_num, &fds, NULL, NULL, NULL) < 0) error("select fail"); // select로 어떤 FD_NUM에 신호(변화)가 생겼는지 확인
         // 이후 FD_ISSET으로 처리
-        
+        printf("waitig...\n"); 
         // 별도의 if문으로 처리? else if로 묶기?
         if(FD_ISSET(0,&fds)){
             fgets(msg,sizeof(msg),stdin);
