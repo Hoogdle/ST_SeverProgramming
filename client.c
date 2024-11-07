@@ -35,6 +35,7 @@ int main(int argc, char* argv[]){
         // 별도의 if문으로 처리? else if로 묶기?
         if(FD_ISSET(0,&fds)){
             fgets(msg,sizeof(msg),stdin);
+            printf("your input : %s\n",msg);
             write(s,msg,strlen(msg));
         }
         else if(FD_ISSET(s,&fds)){

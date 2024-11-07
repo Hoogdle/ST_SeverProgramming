@@ -41,8 +41,6 @@ int main(int argc, char* argv[]){
     pthread_t thread;
     fd_set fds;
     char msg[MAX_LENGTH];
-    int player[MAX_SOCKET]; // 플레이어 소켓 
-    int player_num = 0; // 플레이어 숫자 
     int player_socket_num; // 플레이어 소켓 임시 저장 변수 
     int struct_len = sizeof(struct sockaddr_in);
 
@@ -69,7 +67,8 @@ int main(int argc, char* argv[]){
             player_socket_num = accept(listen_socket,(struct sockaddr*)&addr, &struct_len); // 해당 사용자의 FD_NUM을 player_socket_num에 accpet() 인자로 전달한 addr에는 주소를 받음 
             if(player_socket_num == -1){error("accept error");}
             printf("new player\n");
-            add_player(player_num,&addr); // 사용자 추가 부분 => player_socket_num을 player 소켓 배열에 저장, 주소 저장 
+            add_player(player_socket_num,&addr); // 사용자 추가 부분 => player_socket_num을 player 소켓 배열에 저장, 주소 저장 
+            printf("player num : %d\n",player_num);
         }
         
         printf("!\n"); 
