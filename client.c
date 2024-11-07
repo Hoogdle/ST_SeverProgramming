@@ -29,17 +29,16 @@ int main(int argc, char* argv[]){
         FD_ZERO(&fds); // fds를 모두 0으로 세
         FD_SET(0,&fds); // 표준입력을 SET
         FD_SET(s,&fds); // 소켓 SET
-        if(select(max_socket_num, &fds, NULL, NULL, NULL) < 0) error("select fail"); // select로 어떤 FD_NUM에 신호(변화)가 생겼는지 확인
+        if(select(max_socket_num, &fds, NULL, NULL, NULL) < 0) error("select fail"); // select로 어떤 FD_NUM에 신호(변화)가 생겼는지 확인, select에서 기다리는 역할을 하는듯.
         // 이후 FD_ISSET으로 처리
-        printf("waitig...\n"); 
         // 별도의 if문으로 처리? else if로 묶기?
         if(FD_ISSET(0,&fds)){
             fgets(msg,sizeof(msg),stdin);
-            printf("your input : %s\n",msg);
             write(s,msg,strlen(msg));
         }
-        else if(FD_ISSET(s,&fds)){
+        if(FD_ISSET(s,&fds)){
             length = read(s,msg,sizeof(msg));
+            msg[length] = 0;
             printf("%s\n",msg);
         }
         length = 0;

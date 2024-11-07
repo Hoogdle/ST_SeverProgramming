@@ -71,12 +71,12 @@ int main(int argc, char* argv[]){
             printf("player num : %d\n",player_num);
         }
         
-        printf("!\n"); 
         for(int i=0; i<player_num; ++i){
             if(FD_ISSET(player[i],&fds)){
 
             length = read(player_socket_num,msg,sizeof(msg));
             msg[length] = 0; // 종료문자처리
+            printf("input str : %s\n",msg);
             for(int j=0; j<player_num; ++j) write(player[j],msg,length);
             }
         }
