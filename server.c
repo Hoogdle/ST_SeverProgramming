@@ -33,7 +33,19 @@ void* utility(void *arg){
 // 함수의 편리를 위해 전역변수 선언 
 int player[MAX_SOCKET]; // 플레이어 소켓 
 int player_num = 0; // 플레이어 숫자 
-int listen_socket; 
+int listen_socket;
+
+struct user{
+    char name[20];
+    int page; // 사용자가 머물고 있는 페이지 번호 표시 (1~4페이지 존재)
+};
+// user에는 현재 서버에 '접속한' 사용자에 관한 정보 저장 
+struct user_databse{
+    char id[20];
+    char pwd[20];
+    char name[20];
+}; // user_database에는 '등록된' 사용자에 관한 정보를 모두 저장 
+
 
 int main(int argc, char* argv[]){
     int length;
@@ -77,14 +89,16 @@ int main(int argc, char* argv[]){
             length = read(player[i],msg,sizeof(msg));
             msg[length] = 0; // 종료문자처리
             printf("input str : %s\n",msg);
-            for(int j=0; j<player_num; ++j) write(player[j],msg,length);
+            for(int j=0; j<player_num; ++j){
+                if (j==i) continue;
+                write(player[j],msg,length);
+                }
             }
-        }
         strcpy(msg,"\0");
         length = 0;
+        }
     }
 }
-
 int  tcp_listen(int host, int port, int backlog) {
     int sd;
     struct sockaddr_in servaddr;
@@ -122,3 +136,5 @@ void add_player(int socket_num, struct sockaddr_in *client_addr){
     player[player_num] = socket_num;
     player_num++;
 }
+
+
