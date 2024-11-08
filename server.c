@@ -10,6 +10,8 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/file.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -19,45 +21,54 @@
 
 #define MAX_LENGTH 512 // 오류 나면 하나 줄여보기
 #define MAX_SOCKET 1024
+#define BUF_SIZE 1024
 
 int tcp_listen(int host, int port, int backlog);
 int max_socket_num();
 void error(char *msg){perror(msg); exit(1);}
 void add_player(int socket_num, struct sockaddr_in *client_addr);
-
+void _main();
+void chatting();
+void selecter(int socket_num);
 void* utility(void *arg){
     printf("Command : hello\n");
 }
 // argv[1]로 포트번호를 받음
 
-// 함수의 편리를 위해 전역변수 선언 
-int player[MAX_SOCKET]; // 플레이어 소켓 
-int player_num = 0; // 플레이어 숫자 
-int listen_socket;
 
-struct user{
+struct users{
     char name[20];
     int page; // 사용자가 머물고 있는 페이지 번호 표시 (1~4페이지 존재)
 };
-// user에는 현재 서버에 '접속한' 사용자에 관한 정보 저장 
-struct user_databse{
+// user에는 현재 서버에 '접속한' 사용자에 관한 정보 저장
+
+struct user_database{
     char id[20];
     char pwd[20];
     char name[20];
 }; // user_database에는 '등록된' 사용자에 관한 정보를 모두 저장 
+
+// 함수의 편리를 위해 전역변수 선언 
+int player[MAX_SOCKET]; // 플레이어 소켓 
+int player_num = 0; // 플레이어 숫자
+int account_num = 0;
+int listen_socket;
+struct users user[MAX_SOCKET];
+struct user_database* data_base;
+char buf[BUF_SIZE];
+fd_set fds;
 
 
 int main(int argc, char* argv[]){
     int length;
     struct sockaddr_in addr;
     pthread_t thread;
-    fd_set fds;
     char msg[MAX_LENGTH];
     int player_socket_num; // 플레이어 소켓 임시 저장 변수 
     int struct_len = sizeof(struct sockaddr_in);
-
     int socket_max;
-
+    data_base = (struct user_database*)malloc(sizeof(struct user_database));
+    
 
     if (argc != 2){printf("Please insert 'Port' in argument\n"); exit(0);}
 
@@ -81,24 +92,18 @@ int main(int argc, char* argv[]){
             printf("new player\n");
             add_player(player_socket_num,&addr); // 사용자 추가 부분 => player_socket_num을 player 소켓 배열에 저장, 주소 저장 
             printf("player num : %d\n",player_num);
-        }
-        
+            _main(player_socket_num);
+        } // end of connect check
+
         for(int i=0; i<player_num; ++i){
             if(FD_ISSET(player[i],&fds)){
-
-            length = read(player[i],msg,sizeof(msg));
-            msg[length] = 0; // 종료문자처리
-            printf("input str : %s\n",msg);
-            for(int j=0; j<player_num; ++j){
-                if (j==i) continue;
-                write(player[j],msg,length);
-                }
+                selecter(player[i]);
             }
-        strcpy(msg,"\0");
-        length = 0;
+
         }
     }
 }
+
 int  tcp_listen(int host, int port, int backlog) {
     int sd;
     struct sockaddr_in servaddr;
@@ -134,7 +139,56 @@ void add_player(int socket_num, struct sockaddr_in *client_addr){
     char buf[20]; // 주소를 저장할 buf 
     inet_ntop(AF_INET, &client_addr->sin_addr, buf, sizeof(buf)); // 네트워크 정보(빅 인디언 이진데이터) => AF_INET 프로토콜(IPV4)로 변환 
     player[player_num] = socket_num;
+    user[socket_num].page = 1; // 처음 접속한 유저의 페이지를 1로 설정 
     player_num++;
 }
 
+void _main(int socket_num){
+    int fd = open("/home/ty/project/interface/main.txt",O_RDONLY);
+    char buf[BUF_SIZE];
+    read(fd,buf,BUF_SIZE-1);
+    write(socket_num,buf,strlen(buf));
+}
 
+void chatting(){
+    int length;
+    for(int i=0; i<player_num; ++i){
+        if(FD_ISSET(player[i],&fds)){
+
+            length = read(player[i],buf,sizeof(buf));
+            buf[length] = 0; // 종료문자처리
+            printf("input str : %s\n",buf);
+            for(int j=0; j<player_num; ++j){
+                if (j==i) continue;
+                write(player[j],buf,length);
+            }
+        }
+        strcpy(buf,"\0");
+        length = 0;
+    }
+}
+
+void selecter(int socket_num){
+    int page;
+    int select;
+    read(socket_num,buf,sizeof(buf));
+
+    page = user[socket_num].page;
+    select = atoi(buf);
+
+    printf("page : %d, selcet : %d\n",page,select);
+
+/*    switch(page){
+        case 1:
+            page1(select);
+            break;
+        case 2:
+            page2(select);
+            break;
+        case 3:
+            page3(select);
+            break;
+        case 4:
+            page4(select);
+            break; */
+}
