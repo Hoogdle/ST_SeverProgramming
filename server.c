@@ -260,7 +260,6 @@ void page1_1(int socket_num){
     while(1){
         write(socket_num,t2,strlen(t2));
         length = read(socket_num,utmp,sizeof(utmp)); // 사용자에게서 아이디 읽기
-        printf("%s\n",tmp);
         if(find_id(utmp) == 0){ 
             write(socket_num,t4,sizeof(t4));
             continue;
@@ -288,12 +287,15 @@ int find_id(char* id){
     char tmp[1024];
     char ids[1024];
     char tag[1024] = "<id>";
+    char null[3] = "\0";
     FILE* data = fopen("/home/ty/project/database.txt","r");
-    strcat(ids,tag);
-    strcat(ids,id);
-    strcat(ids,"\0");
-    
+    strncat(ids,tag,sizeof(ids)-strlen(ids)-1);
+    strncat(ids,id,sizeof(ids)-strlen(ids)-1);
+    strncat(ids,null,sizeof(ids)-strlen(ids)-1);
+   
+
     while(fgets(tmp,sizeof(tmp),data) != NULL){
+        printf("size : %ld length : %ld\n", sizeof(ids), strlen(ids));
         tmp[strlen(tmp)-1] = '\0';
         printf("%s\n",tmp);
         int check;
@@ -308,12 +310,14 @@ int find_pw(char* pw){
     char tmp[1024];
     char pwd[1024];
     char tag[1024] = "<pw>"; // 추후 pw 토큰 다시 고려해야함 
+    char null[3] = "\0";
     FILE* data = fopen("/home/ty/project/database.txt","r");
-    strcat(pwd,tag);
-    strcat(pwd,pw);
-    strcat(pwd,"\0");
-    
+    strncat(pwd,tag,sizeof(pwd)-strlen(pwd)-1);
+    strncat(pwd,pw,sizeof(pwd)-strlen(pwd)-1);
+    strncat(pwd,null,sizeof(pwd)-strlen(pwd)-1);
+   
     while(fgets(tmp,sizeof(tmp),data) != NULL){
+        printf("size : %ld length : %ld\n", sizeof(pwd), strlen(pwd));
         tmp[strlen(tmp)-1] = '\0';
         printf("%s\n",tmp);
         int check;
