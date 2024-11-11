@@ -10,6 +10,8 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/file.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -19,49 +21,66 @@
 
 #define MAX_LENGTH 512 // 오류 나면 하나 줄여보기
 #define MAX_SOCKET 1024
+#define BUF_SIZE 1024
 
 int tcp_listen(int host, int port, int backlog);
 int max_socket_num();
 void error(char *msg){perror(msg); exit(1);}
 void add_player(int socket_num, struct sockaddr_in *client_addr);
-
+void _main();
+void chatting();
+void selecter(int socket_num);
+void page1(int n,int s_n);
+void page1_1(int socket_num);
+int find_id(char* id);
+int find_pw(char* pw);
+void _page2(int socket_num);
 void* utility(void *arg){
     printf("Command : hello\n");
 }
+
 // argv[1]로 포트번호를 받음
 
-// 함수의 편리를 위해 전역변수 선언 
-int player[MAX_SOCKET]; // 플레이어 소켓 
-int player_num = 0; // 플레이어 숫자 
-int listen_socket;
 
-struct user{
+struct users{
     char name[20];
     int page; // 사용자가 머물고 있는 페이지 번호 표시 (1~4페이지 존재)
 };
-// user에는 현재 서버에 '접속한' 사용자에 관한 정보 저장 
-struct user_databse{
+// user에는 현재 서버에 '접속한' 사용자에 관한 정보 저장
+
+/*struct user_database{
     char id[20];
     char pwd[20];
     char name[20];
-}; // user_database에는 '등록된' 사용자에 관한 정보를 모두 저장 
+};*/ // user_database에는 '등록된' 사용자에 관한 정보를 모두 저장 
+
+// 함수의 편리를 위해 전역변수 선언 
+int player[MAX_SOCKET]; // 플레이어 소켓 
+int player_num = 0; // 플레이어 숫자
+int account_num = 0;
+int listen_socket;
+int data_base;
+struct users user[MAX_SOCKET];
+char buf[BUF_SIZE];
+fd_set fds;
 
 
 int main(int argc, char* argv[]){
     int length;
     struct sockaddr_in addr;
     pthread_t thread;
-    fd_set fds;
     char msg[MAX_LENGTH];
     int player_socket_num; // 플레이어 소켓 임시 저장 변수 
     int struct_len = sizeof(struct sockaddr_in);
-
     int socket_max;
-
+    //data_base = (struct user_database*)malloc(sizeof(struct user_database));
+    
 
     if (argc != 2){printf("Please insert 'Port' in argument\n"); exit(0);}
 
-    listen_socket = tcp_listen(INADDR_ANY, atoi(argv[1]), 5); // 사용자 '접속' 소켓 
+
+    // fork() 함수로 자식 -> 서버~클라이언트, 부모 -> 서버 관리전용 만들
+    listen_socket = tcp_listen(INADDR_ANY, atoi(argv[1]), 5); // 사용자 기'접속' 소켓
     socket_max = listen_socket;
     //pthread_create(&thread, NULL, utility, (void *)NULL);
     printf("Hello Server!\n");
@@ -81,24 +100,18 @@ int main(int argc, char* argv[]){
             printf("new player\n");
             add_player(player_socket_num,&addr); // 사용자 추가 부분 => player_socket_num을 player 소켓 배열에 저장, 주소 저장 
             printf("player num : %d\n",player_num);
-        }
-        
+            _main(player_socket_num);
+        } // end of connect check
+
         for(int i=0; i<player_num; ++i){
             if(FD_ISSET(player[i],&fds)){
-
-            length = read(player[i],msg,sizeof(msg));
-            msg[length] = 0; // 종료문자처리
-            printf("input str : %s\n",msg);
-            for(int j=0; j<player_num; ++j){
-                if (j==i) continue;
-                write(player[j],msg,length);
-                }
+                selecter(player[i]);
             }
-        strcpy(msg,"\0");
-        length = 0;
+
         }
     }
 }
+
 int  tcp_listen(int host, int port, int backlog) {
     int sd;
     struct sockaddr_in servaddr;
@@ -134,7 +147,183 @@ void add_player(int socket_num, struct sockaddr_in *client_addr){
     char buf[20]; // 주소를 저장할 buf 
     inet_ntop(AF_INET, &client_addr->sin_addr, buf, sizeof(buf)); // 네트워크 정보(빅 인디언 이진데이터) => AF_INET 프로토콜(IPV4)로 변환 
     player[player_num] = socket_num;
+    user[socket_num].page = 1; // 처음 접속한 유저의 페이지를 1로 설정 
     player_num++;
 }
+
+void _main(int socket_num){
+    int fd = open("/home/ty/project/interface/main.txt",O_RDONLY);
+    char buf[BUF_SIZE];
+    read(fd,buf,BUF_SIZE-1);
+    write(socket_num,buf,strlen(buf));
+}
+
+void _page2(int socket_num){
+    int fd = open("/home/ty/project/interface/room_list.txt",O_RDONLY);
+    char buf[BUF_SIZE];
+    read(fd,buf,BUF_SIZE-1);
+    write(socket_num,buf,strlen(buf));
+}
+    
+
+void chatting(){
+    int length;
+    for(int i=0; i<player_num; ++i){
+        if(FD_ISSET(player[i],&fds)){
+
+            length = read(player[i],buf,sizeof(buf));
+            buf[length] = 0; // 종료문자처리
+            printf("input str : %s\n",buf);
+            for(int j=0; j<player_num; ++j){
+                if (j==i) continue;
+                write(player[j],buf,length);
+            }
+        }
+        strcpy(buf,"\0");
+        length = 0;
+    }
+}
+
+// 각 페이지마다 페이지 담당 함수로 보내주기 
+void selecter(int socket_num){
+    int page;
+    int select;
+    read(socket_num,buf,sizeof(buf));
+
+    page = user[socket_num].page;
+    select = atoi(buf);
+
+    printf("page : %d, selcet : %d\n",page,select);
+
+    switch(page){
+        case 1:
+            page1(select, socket_num);
+            break;
+        /*case 2:
+            page2(select);
+            break;
+        case 3:
+            page3(select);
+            break;
+        case 4:
+            page4(select);
+            break; */
+    }
+}
+
+// 페이지1 담당 함수 
+void page1(int n,int s_n){
+    pthread_t thread;
+    switch(n){
+        case 1:
+            // 로그인 
+            // thread create 로 부르기 
+            page1_1(s_n);
+            break;
+       /* case 2:
+            // ID 찾기 
+            // use thread_create 
+            page1_2();
+            break;
+        case 3:
+            // PW 찾기
+            // use thread_create 
+            page1_3();
+            break;
+        case 4:
+            // Sign-up
+            // use thread_create 
+            page1_4();
+            break;
+        case 0:
+            // Exit 
+            page1_0();
+            break;
+    }*/
+    }
+}
+
+void page1_1(int socket_num){
+    int length;
+    char tmp[1024];
+    char utmp[1024];
+    char t1[1024];
+    char t2[1024] = "ID를 입력해주세요 \n";
+    char t3[1024] = "PW를 입력해주세요 \n"; 
+    char t4[1024] = "해당 ID가 존재하지 않습니다.";
+    char t5[1024] = "해당 PW가 존재하지 않습니다.";
+    int fd = open("/home/ty/project/interface/login_page.txt",O_RDONLY);
+    read(fd,tmp,1024-1);
+    write(socket_num,tmp,strlen(tmp));
+    sprintf(t1,"현재 접속중인 인원 : %d\n",player_num);
+    write(socket_num,t1,strlen(t1)); 
+    while(1){
+        write(socket_num,t2,strlen(t2));
+        length = read(socket_num,utmp,sizeof(utmp)); // 사용자에게서 아이디 읽기
+        printf("%s\n",tmp);
+        if(find_id(utmp) == 0){ 
+            write(socket_num,t4,sizeof(t4));
+            continue;
+        }
+        break;
+    }
+    while(1){
+        write(socket_num,t3,strlen(t3));
+        length = read(socket_num,tmp,sizeof(tmp)); // 사용자에게서 pw  읽기 
+        if(find_pw(tmp) == 0){ 
+            write(socket_num,t5,sizeof(t5));
+            continue;
+        }
+        break;
+    }
+    _page2(socket_num);
+}
+    
+
+// id를 저장할 때, <id>{사용자 아이디}로 저장 
+// pw는 <pw>{사용자 비번}으로 저장 
+
+// 입력한 정보가 일치한 것이 있다면 리턴 1, 없다면 리턴 0 
+int find_id(char* id){
+    char tmp[1024];
+    char ids[1024];
+    char tag[1024] = "<id>";
+    FILE* data = fopen("/home/ty/project/database.txt","r");
+    strcat(ids,tag);
+    strcat(ids,id);
+    strcat(ids,"\0");
+    
+    while(fgets(tmp,sizeof(tmp),data) != NULL){
+        tmp[strlen(tmp)-1] = '\0';
+        printf("%s\n",tmp);
+        int check;
+        check = strcmp(tmp,ids);
+        printf("%d\n",check);
+        if(strcmp(tmp,ids)==0) return 1;
+    }
+    return 0;
+}
+        
+int find_pw(char* pw){
+    char tmp[1024];
+    char pwd[1024];
+    char tag[1024] = "<pw>"; // 추후 pw 토큰 다시 고려해야함 
+    FILE* data = fopen("/home/ty/project/database.txt","r");
+    strcat(pwd,tag);
+    strcat(pwd,pw);
+    strcat(pwd,"\0");
+    
+    while(fgets(tmp,sizeof(tmp),data) != NULL){
+        tmp[strlen(tmp)-1] = '\0';
+        printf("%s\n",tmp);
+        int check;
+        check = strcmp(tmp,pwd);
+        printf("%d\n",check);
+        if(strcmp(tmp,pwd)==0) return 1;
+    }
+    return 0;
+}
+
+
 
 
