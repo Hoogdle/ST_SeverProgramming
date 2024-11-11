@@ -32,12 +32,10 @@ void chatting();
 void selecter(int socket_num);
 void page1(int n,int s_n);
 void page1_1(int socket_num);
-int find_id(char* id);
-int find_pw(char* pw);
+int find_id(int socket_num);
+int find_pw(int socket_num);
 void _page2(int socket_num);
-void* utility(void *arg){
-    printf("Command : hello\n");
-}
+
 
 // argv[1]로 포트번호를 받음
 
@@ -153,9 +151,9 @@ void add_player(int socket_num, struct sockaddr_in *client_addr){
 
 void _main(int socket_num){
     int fd = open("/home/ty/project/interface/main.txt",O_RDONLY);
-    char buf[BUF_SIZE];
-    read(fd,buf,BUF_SIZE-1);
-    write(socket_num,buf,strlen(buf));
+    char tmp[10000];
+    read(fd,tmp,10000-1);
+    write(socket_num,tmp,strlen(tmp));
 }
 
 void _page2(int socket_num){
@@ -246,12 +244,11 @@ void page1(int n,int s_n){
 void page1_1(int socket_num){
     int length;
     char tmp[1024];
-    char utmp[1024];
     char t1[1024];
     char t2[1024] = "ID를 입력해주세요 \n";
     char t3[1024] = "PW를 입력해주세요 \n"; 
-    char t4[1024] = "해당 ID가 존재하지 않습니다.";
-    char t5[1024] = "해당 PW가 존재하지 않습니다.";
+    char t4[1024] = "해당 ID가 존재하지 않습니다.\n";
+    char t5[1024] = "해당 PW가 존재하지 않습니다.\n";
     int fd = open("/home/ty/project/interface/login_page.txt",O_RDONLY);
     read(fd,tmp,1024-1);
     write(socket_num,tmp,strlen(tmp));
@@ -259,8 +256,7 @@ void page1_1(int socket_num){
     write(socket_num,t1,strlen(t1)); 
     while(1){
         write(socket_num,t2,strlen(t2));
-        length = read(socket_num,utmp,sizeof(utmp)); // 사용자에게서 아이디 읽기
-        if(find_id(utmp) == 0){ 
+        if(find_id(socket_num) == 0){ 
             write(socket_num,t4,sizeof(t4));
             continue;
         }
@@ -268,8 +264,7 @@ void page1_1(int socket_num){
     }
     while(1){
         write(socket_num,t3,strlen(t3));
-        length = read(socket_num,tmp,sizeof(tmp)); // 사용자에게서 pw  읽기 
-        if(find_pw(tmp) == 0){ 
+        if(find_pw(socket_num) == 0){ 
             write(socket_num,t5,sizeof(t5));
             continue;
         }
@@ -283,48 +278,64 @@ void page1_1(int socket_num){
 // pw는 <pw>{사용자 비번}으로 저장 
 
 // 입력한 정보가 일치한 것이 있다면 리턴 1, 없다면 리턴 0 
-int find_id(char* id){
+int find_id(int socket_num){
+    char id[1000] = "<id>";
     char tmp[1024];
-    char ids[1024];
-    char tag[1024] = "<id>";
+    char input[1000];
     char null[3] = "\0";
+
+    read(socket_num,input,sizeof(input)); // 사용자에게서 pw  읽기 
+
     FILE* data = fopen("/home/ty/project/database.txt","r");
-    strncat(ids,tag,sizeof(ids)-strlen(ids)-1);
-    strncat(ids,id,sizeof(ids)-strlen(ids)-1);
-    strncat(ids,null,sizeof(ids)-strlen(ids)-1);
+    strncat(id,input,sizeof(id)-strlen(id)-1);
+    strncat(id,null,sizeof(id)-strlen(id)-1);
    
 
     while(fgets(tmp,sizeof(tmp),data) != NULL){
-        printf("size : %ld length : %ld\n", sizeof(ids), strlen(ids));
         tmp[strlen(tmp)-1] = '\0';
-        printf("%s\n",tmp);
         int check;
-        check = strcmp(tmp,ids);
-        printf("%d\n",check);
-        if(strcmp(tmp,ids)==0) return 1;
-    }
+        check = strcmp(tmp,id);
+        printf("doing id part\n");
+        printf("input id : %s\n",id);
+        printf("real id : %s\n",tmp); // 마지막 while문에는 빈 파일이므로 tmp는 empty
+        if(strcmp(tmp,id)==0) {
+            fclose(data);
+            bzero(input,sizeof(input));
+            return 1;
+        }
+    } 
+    fclose(data);
+    bzero(input,sizeof(input));
     return 0;
 }
         
-int find_pw(char* pw){
+int find_pw(int socket_num){
+    char pwd[100000] = "<pw>";
     char tmp[1024];
-    char pwd[1024];
-    char tag[1024] = "<pw>"; // 추후 pw 토큰 다시 고려해야함 
+    char input[10000];
     char null[3] = "\0";
+
+    read(socket_num,input,sizeof(input)); // 사용자에게서 pw  읽기 
+    
     FILE* data = fopen("/home/ty/project/database.txt","r");
-    strncat(pwd,tag,sizeof(pwd)-strlen(pwd)-1);
-    strncat(pwd,pw,sizeof(pwd)-strlen(pwd)-1);
+    strncat(pwd,input,sizeof(pwd)-strlen(pwd)-1);
     strncat(pwd,null,sizeof(pwd)-strlen(pwd)-1);
    
     while(fgets(tmp,sizeof(tmp),data) != NULL){
-        printf("size : %ld length : %ld\n", sizeof(pwd), strlen(pwd));
         tmp[strlen(tmp)-1] = '\0';
-        printf("%s\n",tmp);
         int check;
         check = strcmp(tmp,pwd);
-        printf("%d\n",check);
-        if(strcmp(tmp,pwd)==0) return 1;
+        printf("doing pwd part\n");
+        printf("input pwd : %s\n",pwd);
+        printf("real pwd : %s\n",tmp);
+        if(strcmp(tmp,pwd)==0){
+            bzero(input,sizeof(input));
+            fclose(data);
+            return 1;
+        }
     }
+    bzero(input,sizeof(input));
+    fclose(data);
     return 0;
 }
 
