@@ -24,7 +24,7 @@ int main(int argc, char* argv[]){
     
     max_socket_num = s+1; // select의 범위를 정해주기 위해 설정 
     
-    puts("Joined Sever!\n");
+    printf("Joined Sever!\n");
 	while(1){
         FD_ZERO(&fds); // fds를 모두 0으로 세
         FD_SET(0,&fds); // 표준입력을 SET
@@ -36,6 +36,7 @@ int main(int argc, char* argv[]){
             fgets(msg,sizeof(msg),stdin);
             msg[strlen(msg)-1] = '\0';
             write(s,msg,strlen(msg));
+            printf("send msg : %s\n",msg);
         }
         if(FD_ISSET(s,&fds)){
             length = read(s,msg,sizeof(msg));
