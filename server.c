@@ -38,6 +38,8 @@ void _page2(int socket_num);
 void page1_4(int socket_num);
 void page1_2(int s_n);
 void page1_3(int s_n);
+void page1_0(int s_n);
+int check_dupli(char* input);
 // argv[1]로 포트번호를 받음
 
 
@@ -236,10 +238,10 @@ void page1(int n,int s_n){
             page1_4(s_n);
             _main(s_n);
             break;
-       /* case 0:
+        case 0:
             // Exit 
-            page1_0();
-            break;*/
+            page1_0(s_n);
+            break;
 
     }
 }
@@ -333,15 +335,21 @@ int login_pw(int socket_num){
 }
 
 
+// 회원가입 함수 
 void page1_4(int socket_num){
     char info[10000]; 
     char info_id[] = "ID를 입력해주세요\n";
+    char info_id2[] = "중복되는 ID 입니다. 다른 ID를 입력해주세요\n";
     char info_pw[] = "PW를 입력해주세요\n";
     char info_un[] = "닉네임을 입력해주세요\n";
+    char info_un2[] = "중복되는 닉네임 입니다. 다른 닉네임을 입력해주세요\n"; 
     char finish[] = "회원가입이 완료 되었습니다!\n";
-    char id[1000] = "<id>";
-    char pw[1000] = "<pw>";
-    char un[1000] = "<un>";
+    char id[1000];
+    char pw[1000];
+    char un[1000];
+    char id_tag[] = "<id>";
+    char pw_tag[] = "<pw>";
+    char un_tag[] = "<un>";
     
 
     int data = open("/home/ty/project/database.txt",O_RDWR | O_APPEND);
@@ -354,17 +362,28 @@ void page1_4(int socket_num){
     // 추후 중복아이디, 중복 닉네임 거부 코드 추가 
 
     // 사용자에게 Id 입력받음 
-    write(socket_num,info_id,strlen(info_id));
-    read(socket_num,tmp,sizeof(tmp));
-    strcat(id,tmp);
-    write(data,id,strlen(id));
-    printf("tmp is : %s\n",tmp);
-    bzero(tmp,sizeof(tmp));
-    printf("saved id : %s\n",id);
-
+    while(1){
+        write(socket_num,info_id,strlen(info_id));
+        read(socket_num,tmp,sizeof(tmp));
+        strcat(id,id_tag);
+        strcat(id,tmp);
+        if(check_dupli(id)==1){ 
+            write(data,id,strlen(id));
+            bzero(tmp,sizeof(tmp));
+            bzero(id,sizeof(id));
+            break;
+        }
+        //write(data,id,strlen(id));
+        write(socket_num,info_id2,strlen(info_id2));
+        printf("tmp is : %s\n",tmp);
+        printf("saved id : %s\n",id);
+        bzero(id,sizeof(id));
+        bzero(tmp,sizeof(tmp));
+    }
     // 사용자에게 Pw 입력받음 
     write(socket_num,info_pw,strlen(info_pw));
     read(socket_num,tmp,sizeof(tmp));
+    strcat(pw,pw_tag);
     strcat(pw,tmp);
     write(data,pw,strlen(pw));
     printf("tmp is : %s\n",tmp);
@@ -372,17 +391,28 @@ void page1_4(int socket_num){
     printf("saved pw : %s\n",pw);
 
     // 사용자에게 닉네임 입력받음 
-    write(socket_num,info_un,strlen(info_un));
-    read(socket_num,tmp,sizeof(tmp));
-    tmp[strlen(tmp)] = '\n';
-    strcat(un,tmp);
-    write(data,un,strlen(un));
-    printf("tmp is : %s\n",tmp);
-    bzero(tmp,sizeof(tmp));
-    printf("saved un : %s\n",un);
+    while(1){
+        write(socket_num,info_un,strlen(info_un));
+        read(socket_num,tmp,sizeof(tmp));
+        //tmp[strlen(tmp)] = '\n';
+        strcat(un,un_tag);
+        strcat(un,tmp);
+        if(check_dupli(un)==1){
+            write(data,un,strlen(un));
+            bzero(un,sizeof(un));
+            bzero(tmp,sizeof(tmp));
+            break;
+        }
+        write(socket_num,info_un2,strlen(info_un2));
+        printf("tmp is : %s\n",tmp);
+        bzero(un,sizeof(un));
+        bzero(tmp,sizeof(tmp));
+        printf("saved un : %s\n",un);
+    }
+
     close(data);
     close(fd);
-
+    
     write(socket_num,finish,strlen(finish));
 
     bzero(id,sizeof(id));
@@ -433,6 +463,7 @@ void page1_2(int s_n){
             bzero(returns,sizeof(returns));
             bzero(info_1,sizeof(info_1));
             bzero(info_2,sizeof(info_2));
+            _main(s_n);
             return ;
         }
     }
@@ -490,6 +521,7 @@ void page1_3(int s_n){
             bzero(returns,sizeof(returns));
             bzero(info_1,sizeof(info_1));
             bzero(info_2,sizeof(info_2));
+            _main(s_n);
             return ;
         }
     }
@@ -504,4 +536,26 @@ void page1_3(int s_n){
     return;
 }
 
+void page1_0(int s_n){
+    char info[] = "EXIT SERVER\n";
+    write(s_n,info,strlen(info));
+    close(s_n);
+    player_num--;
+    bzero(info,sizeof(info));
+}
 
+int check_dupli(char* input){
+    char tmp[1000];
+    FILE* data = fopen("/home/ty/project/database.txt","r");
+    while(fgets(tmp,sizeof(tmp),data) != NULL){
+        tmp[strlen(tmp)-1] = '\0';
+        if(strstr(tmp,input)!=NULL){
+            fclose(data);
+            bzero(tmp,sizeof(tmp));
+            return 0; // 중복된 경우 리턴 0 
+        }
+    }
+    bzero(tmp,sizeof(tmp));
+    fclose(data);
+    return 1; // 중복되지 않은 경우 리턴 1 
+}

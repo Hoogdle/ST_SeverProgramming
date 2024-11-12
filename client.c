@@ -42,6 +42,7 @@ int main(int argc, char* argv[]){
             length = read(s,msg,sizeof(msg));
             msg[length] = 0;
             printf("%s\n",msg);
+            if(strcmp(msg,"EXIT SERVER\n")==0) exit(0);
         }
         length = 0;
         strcpy(msg,"\0");
