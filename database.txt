@@ -1,11 +1,2 @@
-<id>xodud7737
-<pw>1234
-<id>7737aa
-<pw>1234
-
-<id>rlaxodud7737
-<pw>690405aa
-<un>후후그들형님
-<id>rlaxodud7737
-<pw>690405aa
-<un>후그들형님
+<id>xodud7737<pw>1234<un>후그들님
+<id>7737ttt<pw>690405aa<un>루룰링

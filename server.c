@@ -32,11 +32,11 @@ void chatting();
 void selecter(int socket_num);
 void page1(int n,int s_n);
 void page1_1(int socket_num);
-int find_id(int socket_num);
-int find_pw(int socket_num);
+int login_id(int socket_num);
+int login_pw(int socket_num);
 void _page2(int socket_num);
 void page1_4(int socket_num);
-
+void page1_2(int s_n);
 
 // argv[1]로 포트번호를 받음
 
@@ -220,12 +220,12 @@ void page1(int n,int s_n){
             // thread create 로 부르기 
             page1_1(s_n);
             break;
-       /* case 2:
+       case 2:
             // ID 찾기 
             // use thread_create 
-            page1_2();
+            page1_2(s_n);
             break;
-        case 3:
+        /*case 3:
             // PW 찾기
             // use thread_create 
             page1_3();
@@ -259,7 +259,7 @@ void page1_1(int socket_num){
     write(socket_num,t1,strlen(t1)); 
     while(1){
         write(socket_num,t2,strlen(t2));
-        if(find_id(socket_num) == 0){ 
+        if(login_id(socket_num) == 0){ 
             write(socket_num,t4,sizeof(t4));
             continue;
         }
@@ -267,7 +267,7 @@ void page1_1(int socket_num){
     }
     while(1){
         write(socket_num,t3,strlen(t3));
-        if(find_pw(socket_num) == 0){ 
+        if(login_pw(socket_num) == 0){ 
             write(socket_num,t5,sizeof(t5));
             continue;
         }
@@ -281,7 +281,7 @@ void page1_1(int socket_num){
 // pw는 <pw>{사용자 비번}으로 저장 
 
 // 입력한 정보가 일치한 것이 있다면 리턴 1, 없다면 리턴 0 
-int find_id(int socket_num){
+int login_id(int socket_num){
     char id[1000] = "<id>";
     char tmp[1024];
     char input[1000];
@@ -296,12 +296,7 @@ int find_id(int socket_num){
 
     while(fgets(tmp,sizeof(tmp),data) != NULL){
         tmp[strlen(tmp)-1] = '\0';
-        int check;
-        check = strcmp(tmp,id);
-        printf("doing id part\n");
-        printf("input id : %s\n",id);
-        printf("real id : %s\n",tmp); // 마지막 while문에는 빈 파일이므로 tmp는 empty
-        if(strcmp(tmp,id)==0) {
+        if(strstr(tmp,id)!=NULL) {
             fclose(data);
             bzero(input,sizeof(input));
             return 1;
@@ -312,7 +307,7 @@ int find_id(int socket_num){
     return 0;
 }
         
-int find_pw(int socket_num){
+int login_pw(int socket_num){
     char pwd[100000] = "<pw>";
     char tmp[1024];
     char input[10000];
@@ -326,12 +321,7 @@ int find_pw(int socket_num){
    
     while(fgets(tmp,sizeof(tmp),data) != NULL){
         tmp[strlen(tmp)-1] = '\0';
-        int check;
-        check = strcmp(tmp,pwd);
-        printf("doing pwd part\n");
-        printf("input pwd : %s\n",pwd);
-        printf("real pwd : %s\n",tmp);
-        if(strcmp(tmp,pwd)==0){
+        if(strstr(tmp,pwd)!=NULL){
             bzero(input,sizeof(input));
             fclose(data);
             return 1;
@@ -366,7 +356,6 @@ void page1_4(int socket_num){
     // 사용자에게 Id 입력받음 
     write(socket_num,info_id,strlen(info_id));
     read(socket_num,tmp,sizeof(tmp));
-    tmp[strlen(tmp)] = '\n';
     strcat(id,tmp);
     write(data,id,strlen(id));
     printf("tmp is : %s\n",tmp);
@@ -376,7 +365,6 @@ void page1_4(int socket_num){
     // 사용자에게 Pw 입력받음 
     write(socket_num,info_pw,strlen(info_pw));
     read(socket_num,tmp,sizeof(tmp));
-    tmp[strlen(tmp)] = '\n';
     strcat(pw,tmp);
     write(data,pw,strlen(pw));
     printf("tmp is : %s\n",tmp);
@@ -404,7 +392,57 @@ void page1_4(int socket_num){
     bzero(finish,sizeof(finish));
 }
 
+// id_찾기 함수 
+void page1_2(int s_n){
+    FILE* fd = fopen("/home/ty/project/database.txt","r");
+    char un[1000] = "<un>";
+    char data[1000];
+    char tmp[1000];
+    char id[1000] = "<id>";
+    char pw[] = "<pw>";
+    char returns[1000];
+    char info_1[] = "닉네임을 입력해주세요\n";
+    char info_2[] = "찾으시는 ID : ";
+    write(s_n,info_1,strlen(info_1));
+    read(s_n, data, sizeof(data));
+    strcat(un,data);
 
+    while(fgets(tmp,sizeof(tmp),fd) != NULL){
+        tmp[strlen(tmp)-1] = '\0';
+        char* p;
+        char* g;
+        int gap;
+        if((strstr(tmp,un))!=NULL){
+            p = strstr(tmp,id);
+            g = strstr(tmp,pw);
+            gap = (g-p)/sizeof(char);
+            strncat(returns,tmp,gap);
+            bzero(returns,4);
+            returns[strlen(returns)] = '\n';
+            returns[strlen(returns)] = '\0';
+            write(s_n,info_2,strlen(info_2));
+            write(s_n,returns,strlen(returns));
+            bzero(un,sizeof(un));
+            bzero(data,sizeof(data));
+            bzero(tmp,sizeof(tmp));
+            bzero(id,sizeof(id));
+            bzero(pw,sizeof(pw));
+            bzero(returns,sizeof(returns));
+            bzero(info_1,sizeof(info_1));
+            bzero(info_2,sizeof(info_2));
+            return ;
+        }
+    }
+    bzero(un,sizeof(un));
+    bzero(data,sizeof(data));
+    bzero(tmp,sizeof(tmp));
+    bzero(id,sizeof(id));
+    bzero(pw,sizeof(pw));
+    bzero(returns,sizeof(returns));
+    bzero(info_1,sizeof(info_1));
+    bzero(info_2,sizeof(info_2));
+    return;
+}
 
 
 
