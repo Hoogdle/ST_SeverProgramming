@@ -37,7 +37,7 @@ int login_pw(int socket_num);
 void _page2(int socket_num);
 void page1_4(int socket_num);
 void page1_2(int s_n);
-
+void page1_3(int s_n);
 // argv[1]로 포트번호를 받음
 
 
@@ -225,11 +225,11 @@ void page1(int n,int s_n){
             // use thread_create 
             page1_2(s_n);
             break;
-        /*case 3:
+       case 3:
             // PW 찾기
             // use thread_create 
-            page1_3();
-            break; */
+            page1_3(s_n);
+            break; 
         case 4:
             // Sign-up
             // use thread_create 
@@ -398,7 +398,7 @@ void page1_2(int s_n){
     char un[1000] = "<un>";
     char data[1000];
     char tmp[1000];
-    char id[1000] = "<id>";
+    char id[] = "<id>";
     char pw[] = "<pw>";
     char returns[1000];
     char info_1[] = "닉네임을 입력해주세요\n";
@@ -408,6 +408,8 @@ void page1_2(int s_n){
     strcat(un,data);
 
     while(fgets(tmp,sizeof(tmp),fd) != NULL){
+        printf("tmp is : %s\n",tmp);
+        printf("un is : %s\n",un);
         tmp[strlen(tmp)-1] = '\0';
         char* p;
         char* g;
@@ -416,8 +418,9 @@ void page1_2(int s_n){
             p = strstr(tmp,id);
             g = strstr(tmp,pw);
             gap = (g-p)/sizeof(char);
-            strncat(returns,tmp,gap);
-            bzero(returns,4);
+            printf("gap is : %d\n",gap);
+            strncat(returns,tmp+(4*sizeof(char)),gap-4);
+            printf("returns : %s\n",returns);
             returns[strlen(returns)] = '\n';
             returns[strlen(returns)] = '\0';
             write(s_n,info_2,strlen(info_2));
@@ -446,5 +449,59 @@ void page1_2(int s_n){
 
 
 
+// 비밀번호 찾기 함수 
+void page1_3(int s_n){
+    FILE* fd = fopen("/home/ty/project/database.txt","r");
+    char id[1000] = "<id>";
+    char data[1000];
+    char tmp[1000];
+    char pw[] = "<pw>";
+    char un[] = "<un>";
+    char returns[1000];
+    char info_1[] = "ID를 입력해주세요\n";
+    char info_2[] = "찾으시는 PW : ";
+    write(s_n,info_1,strlen(info_1));
+    read(s_n, data, sizeof(data));
+    strcat(id,data);
+
+    while(fgets(tmp,sizeof(tmp),fd) != NULL){
+        printf("tmp is : %s\n",tmp);
+        printf("id is : %s\n",id);
+        tmp[strlen(tmp)-1] = '\0';
+        char* p;
+        char* g;
+        int gap;
+        if((strstr(tmp,un))!=NULL){
+            p = strstr(tmp,pw);
+            g = strstr(tmp,un);
+            gap = (g-p)/sizeof(char);
+            printf("gap is : %d\n",gap);
+            strncat(returns,p+(4*sizeof(char)),gap-4);
+            printf("returns : %s\n",returns);
+            returns[strlen(returns)] = '\n';
+            returns[strlen(returns)] = '\0';
+            write(s_n,info_2,strlen(info_2));
+            write(s_n,returns,strlen(returns));
+            bzero(un,sizeof(un));
+            bzero(data,sizeof(data));
+            bzero(tmp,sizeof(tmp));
+            bzero(id,sizeof(id));
+            bzero(pw,sizeof(pw));
+            bzero(returns,sizeof(returns));
+            bzero(info_1,sizeof(info_1));
+            bzero(info_2,sizeof(info_2));
+            return ;
+        }
+    }
+    bzero(un,sizeof(un));
+    bzero(data,sizeof(data));
+    bzero(tmp,sizeof(tmp));
+    bzero(id,sizeof(id));
+    bzero(pw,sizeof(pw));
+    bzero(returns,sizeof(returns));
+    bzero(info_1,sizeof(info_1));
+    bzero(info_2,sizeof(info_2));
+    return;
+}
 
 
