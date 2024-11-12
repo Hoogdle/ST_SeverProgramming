@@ -32,10 +32,11 @@ void chatting();
 void selecter(int socket_num);
 void page1(int n,int s_n);
 void page1_1(int socket_num);
-int find_id(int socket_num);
-int find_pw(int socket_num);
+int login_id(int socket_num);
+int login_pw(int socket_num);
 void _page2(int socket_num);
-
+void page1_4(int socket_num);
+void page1_2(int s_n);
 
 // argv[1]로 포트번호를 받음
 
@@ -154,6 +155,7 @@ void _main(int socket_num){
     char tmp[10000];
     read(fd,tmp,10000-1);
     write(socket_num,tmp,strlen(tmp));
+    bzero(tmp,sizeof(tmp));
 }
 
 void _page2(int socket_num){
@@ -218,26 +220,27 @@ void page1(int n,int s_n){
             // thread create 로 부르기 
             page1_1(s_n);
             break;
-       /* case 2:
+       case 2:
             // ID 찾기 
             // use thread_create 
-            page1_2();
+            page1_2(s_n);
             break;
-        case 3:
+        /*case 3:
             // PW 찾기
             // use thread_create 
             page1_3();
-            break;
+            break; */
         case 4:
             // Sign-up
             // use thread_create 
-            page1_4();
+            page1_4(s_n);
+            _main(s_n);
             break;
-        case 0:
+       /* case 0:
             // Exit 
             page1_0();
-            break;
-    }*/
+            break;*/
+
     }
 }
 
@@ -256,7 +259,7 @@ void page1_1(int socket_num){
     write(socket_num,t1,strlen(t1)); 
     while(1){
         write(socket_num,t2,strlen(t2));
-        if(find_id(socket_num) == 0){ 
+        if(login_id(socket_num) == 0){ 
             write(socket_num,t4,sizeof(t4));
             continue;
         }
@@ -264,7 +267,7 @@ void page1_1(int socket_num){
     }
     while(1){
         write(socket_num,t3,strlen(t3));
-        if(find_pw(socket_num) == 0){ 
+        if(login_pw(socket_num) == 0){ 
             write(socket_num,t5,sizeof(t5));
             continue;
         }
@@ -278,7 +281,7 @@ void page1_1(int socket_num){
 // pw는 <pw>{사용자 비번}으로 저장 
 
 // 입력한 정보가 일치한 것이 있다면 리턴 1, 없다면 리턴 0 
-int find_id(int socket_num){
+int login_id(int socket_num){
     char id[1000] = "<id>";
     char tmp[1024];
     char input[1000];
@@ -293,12 +296,7 @@ int find_id(int socket_num){
 
     while(fgets(tmp,sizeof(tmp),data) != NULL){
         tmp[strlen(tmp)-1] = '\0';
-        int check;
-        check = strcmp(tmp,id);
-        printf("doing id part\n");
-        printf("input id : %s\n",id);
-        printf("real id : %s\n",tmp); // 마지막 while문에는 빈 파일이므로 tmp는 empty
-        if(strcmp(tmp,id)==0) {
+        if(strstr(tmp,id)!=NULL) {
             fclose(data);
             bzero(input,sizeof(input));
             return 1;
@@ -309,7 +307,7 @@ int find_id(int socket_num){
     return 0;
 }
         
-int find_pw(int socket_num){
+int login_pw(int socket_num){
     char pwd[100000] = "<pw>";
     char tmp[1024];
     char input[10000];
@@ -323,12 +321,7 @@ int find_pw(int socket_num){
    
     while(fgets(tmp,sizeof(tmp),data) != NULL){
         tmp[strlen(tmp)-1] = '\0';
-        int check;
-        check = strcmp(tmp,pwd);
-        printf("doing pwd part\n");
-        printf("input pwd : %s\n",pwd);
-        printf("real pwd : %s\n",tmp);
-        if(strcmp(tmp,pwd)==0){
+        if(strstr(tmp,pwd)!=NULL){
             bzero(input,sizeof(input));
             fclose(data);
             return 1;
@@ -338,6 +331,119 @@ int find_pw(int socket_num){
     fclose(data);
     return 0;
 }
+
+
+void page1_4(int socket_num){
+    char info[10000]; 
+    char info_id[] = "ID를 입력해주세요\n";
+    char info_pw[] = "PW를 입력해주세요\n";
+    char info_un[] = "닉네임을 입력해주세요\n";
+    char finish[] = "회원가입이 완료 되었습니다!\n";
+    char id[1000] = "<id>";
+    char pw[1000] = "<pw>";
+    char un[1000] = "<un>";
+    
+
+    int data = open("/home/ty/project/database.txt",O_RDWR | O_APPEND);
+    char tmp[1024];
+    int fd = open("/home/ty/project/interface/signup_page.txt",O_RDONLY);
+
+    read(fd,info,sizeof(info)-1);
+    write(socket_num,info,strlen(info));
+    
+    // 추후 중복아이디, 중복 닉네임 거부 코드 추가 
+
+    // 사용자에게 Id 입력받음 
+    write(socket_num,info_id,strlen(info_id));
+    read(socket_num,tmp,sizeof(tmp));
+    strcat(id,tmp);
+    write(data,id,strlen(id));
+    printf("tmp is : %s\n",tmp);
+    bzero(tmp,sizeof(tmp));
+    printf("saved id : %s\n",id);
+
+    // 사용자에게 Pw 입력받음 
+    write(socket_num,info_pw,strlen(info_pw));
+    read(socket_num,tmp,sizeof(tmp));
+    strcat(pw,tmp);
+    write(data,pw,strlen(pw));
+    printf("tmp is : %s\n",tmp);
+    bzero(tmp,sizeof(tmp));
+    printf("saved pw : %s\n",pw);
+
+    // 사용자에게 닉네임 입력받음 
+    write(socket_num,info_un,strlen(info_un));
+    read(socket_num,tmp,sizeof(tmp));
+    tmp[strlen(tmp)] = '\n';
+    strcat(un,tmp);
+    write(data,un,strlen(un));
+    printf("tmp is : %s\n",tmp);
+    bzero(tmp,sizeof(tmp));
+    printf("saved un : %s\n",un);
+    close(data);
+    close(fd);
+
+    write(socket_num,finish,strlen(finish));
+
+    bzero(id,sizeof(id));
+    bzero(pw,sizeof(pw));
+    bzero(un,sizeof(un));
+    bzero(info,sizeof(info));
+    bzero(finish,sizeof(finish));
+}
+
+// id_찾기 함수 
+void page1_2(int s_n){
+    FILE* fd = fopen("/home/ty/project/database.txt","r");
+    char un[1000] = "<un>";
+    char data[1000];
+    char tmp[1000];
+    char id[1000] = "<id>";
+    char pw[] = "<pw>";
+    char returns[1000];
+    char info_1[] = "닉네임을 입력해주세요\n";
+    char info_2[] = "찾으시는 ID : ";
+    write(s_n,info_1,strlen(info_1));
+    read(s_n, data, sizeof(data));
+    strcat(un,data);
+
+    while(fgets(tmp,sizeof(tmp),fd) != NULL){
+        tmp[strlen(tmp)-1] = '\0';
+        char* p;
+        char* g;
+        int gap;
+        if((strstr(tmp,un))!=NULL){
+            p = strstr(tmp,id);
+            g = strstr(tmp,pw);
+            gap = (g-p)/sizeof(char);
+            strncat(returns,tmp,gap);
+            bzero(returns,4);
+            returns[strlen(returns)] = '\n';
+            returns[strlen(returns)] = '\0';
+            write(s_n,info_2,strlen(info_2));
+            write(s_n,returns,strlen(returns));
+            bzero(un,sizeof(un));
+            bzero(data,sizeof(data));
+            bzero(tmp,sizeof(tmp));
+            bzero(id,sizeof(id));
+            bzero(pw,sizeof(pw));
+            bzero(returns,sizeof(returns));
+            bzero(info_1,sizeof(info_1));
+            bzero(info_2,sizeof(info_2));
+            return ;
+        }
+    }
+    bzero(un,sizeof(un));
+    bzero(data,sizeof(data));
+    bzero(tmp,sizeof(tmp));
+    bzero(id,sizeof(id));
+    bzero(pw,sizeof(pw));
+    bzero(returns,sizeof(returns));
+    bzero(info_1,sizeof(info_1));
+    bzero(info_2,sizeof(info_2));
+    return;
+}
+
 
 
 
