@@ -155,6 +155,7 @@ void _main(int socket_num){
     char tmp[10000];
     read(fd,tmp,10000-1);
     write(socket_num,tmp,strlen(tmp));
+    bzero(tmp,sizeof(tmp));
 }
 
 void _page2(int socket_num){
@@ -233,6 +234,7 @@ void page1(int n,int s_n){
             // Sign-up
             // use thread_create 
             page1_4(s_n);
+            _main(s_n);
             break;
        /* case 0:
             // Exit 
@@ -346,12 +348,13 @@ void page1_4(int socket_num){
     char info_id[] = "ID를 입력해주세요\n";
     char info_pw[] = "PW를 입력해주세요\n";
     char info_un[] = "닉네임을 입력해주세요\n";
-    char id[] = "<id>";
-    char pw[] = "<pw>";
-    char un[] = "<un>";
+    char finish[] = "회원가입이 완료 되었습니다!\n";
+    char id[1000] = "<id>";
+    char pw[1000] = "<pw>";
+    char un[1000] = "<un>";
     
 
-    int data = open("/home/ty/project/database.txt",); // 요기서부터!
+    int data = open("/home/ty/project/database.txt",O_RDWR | O_APPEND);
     char tmp[1024];
     int fd = open("/home/ty/project/interface/signup_page.txt",O_RDONLY);
 
@@ -359,26 +362,46 @@ void page1_4(int socket_num){
     write(socket_num,info,strlen(info));
     
     // 추후 중복아이디, 중복 닉네임 거부 코드 추가 
-    
+
+    // 사용자에게 Id 입력받음 
     write(socket_num,info_id,strlen(info_id));
     read(socket_num,tmp,sizeof(tmp));
+    tmp[strlen(tmp)] = '\n';
     strcat(id,tmp);
-    fwrite(data,id,strlen(id));
+    write(data,id,strlen(id));
+    printf("tmp is : %s\n",tmp);
     bzero(tmp,sizeof(tmp));
+    printf("saved id : %s\n",id);
 
+    // 사용자에게 Pw 입력받음 
     write(socket_num,info_pw,strlen(info_pw));
     read(socket_num,tmp,sizeof(tmp));
+    tmp[strlen(tmp)] = '\n';
     strcat(pw,tmp);
-    fwrite(data,pw,strlen(pw));
+    write(data,pw,strlen(pw));
+    printf("tmp is : %s\n",tmp);
     bzero(tmp,sizeof(tmp));
+    printf("saved pw : %s\n",pw);
 
+    // 사용자에게 닉네임 입력받음 
     write(socket_num,info_un,strlen(info_un));
     read(socket_num,tmp,sizeof(tmp));
+    tmp[strlen(tmp)] = '\n';
     strcat(un,tmp);
-    fwrite(data,un,strlen(un));
-    bzero(un,sizeof(un));
-    fclose(data);
+    write(data,un,strlen(un));
+    printf("tmp is : %s\n",tmp);
+    bzero(tmp,sizeof(tmp));
+    printf("saved un : %s\n",un);
+    close(data);
     close(fd);
+
+    write(socket_num,finish,strlen(finish));
+
+    bzero(id,sizeof(id));
+    bzero(pw,sizeof(pw));
+    bzero(un,sizeof(un));
+    bzero(info,sizeof(info));
+    bzero(finish,sizeof(finish));
 }
 
 
