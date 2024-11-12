@@ -35,6 +35,7 @@ void page1_1(int socket_num);
 int find_id(int socket_num);
 int find_pw(int socket_num);
 void _page2(int socket_num);
+void page1_4(int socket_num);
 
 
 // argv[1]로 포트번호를 받음
@@ -227,17 +228,17 @@ void page1(int n,int s_n){
             // PW 찾기
             // use thread_create 
             page1_3();
-            break;
+            break; */
         case 4:
             // Sign-up
             // use thread_create 
-            page1_4();
+            page1_4(s_n);
             break;
-        case 0:
+       /* case 0:
             // Exit 
             page1_0();
-            break;
-    }*/
+            break;*/
+
     }
 }
 
@@ -338,6 +339,50 @@ int find_pw(int socket_num){
     fclose(data);
     return 0;
 }
+
+
+void page1_4(int socket_num){
+    char info[10000]; 
+    char info_id[] = "ID를 입력해주세요\n";
+    char info_pw[] = "PW를 입력해주세요\n";
+    char info_un[] = "닉네임을 입력해주세요\n";
+    char id[] = "<id>";
+    char pw[] = "<pw>";
+    char un[] = "<un>";
+    
+
+    int data = open("/home/ty/project/database.txt",); // 요기서부터!
+    char tmp[1024];
+    int fd = open("/home/ty/project/interface/signup_page.txt",O_RDONLY);
+
+    read(fd,info,sizeof(info)-1);
+    write(socket_num,info,strlen(info));
+    
+    // 추후 중복아이디, 중복 닉네임 거부 코드 추가 
+    
+    write(socket_num,info_id,strlen(info_id));
+    read(socket_num,tmp,sizeof(tmp));
+    strcat(id,tmp);
+    fwrite(data,id,strlen(id));
+    bzero(tmp,sizeof(tmp));
+
+    write(socket_num,info_pw,strlen(info_pw));
+    read(socket_num,tmp,sizeof(tmp));
+    strcat(pw,tmp);
+    fwrite(data,pw,strlen(pw));
+    bzero(tmp,sizeof(tmp));
+
+    write(socket_num,info_un,strlen(info_un));
+    read(socket_num,tmp,sizeof(tmp));
+    strcat(un,tmp);
+    fwrite(data,un,strlen(un));
+    bzero(un,sizeof(un));
+    fclose(data);
+    close(fd);
+}
+
+
+
 
 
 
