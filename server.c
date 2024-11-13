@@ -661,7 +661,7 @@ void make_room(int s_n,int r_n, char* room_name){
     
 
 
-
+// 유저가 방을 생성하는 함수 
 void page2_0(int s_n){
     int r_n = room_num // 타 클라이언트가 동시에 방을 생성하면 룸 넘버가 겹칠 수 있기 때문에 room_creat 함수에 들어오는 순간 바로 저장 
     int fd = open("/home/ty/project/interface/room_list.txt",O_RDWR | O_APPEND); // room list에 대한 정보를 저장하고 있는 파일 
@@ -692,10 +692,15 @@ void page2_0(int s_n){
     bzero(room_info,sizeof(room_info));
 }
 
+// 유저가 생성된 방에 입장하는 함수 
 void page2_n(int s_n,int n){
     // TODO 방에 사용자가 꽉찬 경우 방에 들어가지 못하는 기능 추가
     rooms[n]++;
+    char route[1000];
+    int fd;
 
+    sprintf(route,"/home/ty/project/interface/rooms/%d.txt",n);
+    fd = open(route,O_RDWR | O_APPEND);
     
 
     
