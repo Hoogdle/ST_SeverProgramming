@@ -29,7 +29,7 @@ void error(char *msg){perror(msg); exit(1);}
 void add_player(int socket_num, struct sockaddr_in *client_addr);
 void _main();
 void chatting();
-void* selecter(void* socket_num);
+void selecter(int socket_num);
 void page1(int n,int s_n);
 void page1_1(int socket_num);
 int login_id(int socket_num);
@@ -63,7 +63,7 @@ int listen_socket;
 int data_base;
 struct users user[MAX_SOCKET];
 char buf[BUF_SIZE];
-int sign[BUF_SIZE] ={0,};
+char sign[BUF_SIZE] ={0,};
 
 fd_set fds;
 
@@ -107,14 +107,17 @@ int main(int argc, char* argv[]){
             _main(player_socket_num);
         } // end of connect check
 
-        for(int i=0; i<player_num; ++i){
+         for(int i=0; i<player_num; ++i){
             if(FD_ISSET(player[i],&fds)){
-                printf("there is some signal!\n");
-                if(sign[player[i]] == 1) continue;
-                sign[player[i]]=1;
-                printf("thread created\n");
-                pthread_create(&thread[player[i]],NULL,selecter,(void*)&player[i]);
-                //selecter(player[i]);
+                printf("check sign : %d\n",sign[player[i]]);
+                if(sign[player[i]]==1)continue;
+                pid_t pid = fork();
+                
+                if(pid==0){  
+                    selecter(player[i]);
+                    exit(0);
+                }
+                sign[player[i]] = 1;
             }
 
         }
@@ -195,24 +198,22 @@ void chatting(){
 }
 
 // 각 페이지마다 페이지 담당 함수로 보내주기 
-void* selecter(void* socket_num){
-    char input[1000];
-    int* tmp = (int*)socket_num;
-    int s_n = *tmp;
-    printf("socket_num : %d\n",s_n);
+void selecter(int socket_num){
+    printf("socket num : %d\n",socket_num);
+    //sign[socket_num] = 1;
     int page;
     int select;
-    read(s_n,input,sizeof(input));
+    read(socket_num,buf,sizeof(buf));
 
-    page = user[s_n].page;
-    select = atoi(input);
+    page = user[socket_num].page;
+    select = atoi(buf);
 
     printf("page : %d, selcet : %d\n",page,select);
 
     switch(page){
         case 1:
-            page1(select, s_n);
-            sign[s_n] = 0;
+            page1(select, socket_num);
+            sign[socket_num] = 0;
             break;
         /*case 2:
             page2(select);
