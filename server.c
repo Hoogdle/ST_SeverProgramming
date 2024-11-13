@@ -47,6 +47,7 @@ struct users{
     char name[20];
     int page; // 사용자가 머물고 있는 페이지 번호 표시 (1~4페이지 존재)
 };
+
 // user에는 현재 서버에 '접속한' 사용자에 관한 정보 저장
 
 /*struct user_database{
@@ -64,6 +65,8 @@ int data_base;
 struct users user[MAX_SOCKET];
 char buf[BUF_SIZE];
 int sign[BUF_SIZE] ={0,};
+int room_num = 1; // 할당할 방 번호 
+int rooms[MAX_SOCKET] = {0,}; // 방에 있는 사람의 숫자를 세기 위한 함수 
 
 fd_set fds;
 
@@ -168,6 +171,14 @@ void _main(int socket_num){
     bzero(tmp,sizeof(tmp));
 }
 
+void _room(int s_n){
+    int fd = open("/home/ty/project/interface/room_list.txt",O_RDONLY);
+    char tmp[10000];
+    read(fd,tmp,sizeof(tmp)-1);
+    write(s_n,tmp,strlen(tmp));
+    bzero(tmp,sizeof(tmp));
+}
+
 void _page2(int socket_num){
     int fd = open("/home/ty/project/interface/room_list.txt",O_RDONLY);
     char buf[BUF_SIZE];
@@ -214,9 +225,11 @@ void* selecter(void* socket_num){
             page1(select, s_n);
             sign[s_n] = 0;
             break;
-        /*case 2:
+        case 2:
+            user[s_n] = 2;
             page2(select);
             break;
+        /* 
         case 3:
             page3(select);
             break;
@@ -571,3 +584,123 @@ int check_dupli(char* input){
     fclose(data);
     return 1; // 중복되지 않은 경우 리턴 1 
 }
+
+void page2(int n,int s_n){
+    char info[] = "올바르지 않은 입력입니다. 다시 입력해주세요\n";
+    // page2 함수 상단에서 이미 허용되지 않는 input을 처리했음 
+    // 따라서 switch 아래의 함수들은 안심하고 각자의 역할을 하면 됨 
+    if(n>room_num || n < (-1)){
+        char tmp[100];
+        while(1){
+            write(s_n,info,strlen(info));
+            read(s_n,tmp,sizeof(tmp));
+            n = atoi(tmp);
+            if(n == -1){
+                user[s_n] = 1;
+                _main(s_n);
+                return;
+            }
+            if(n<=room_num && n > (-1)) break; // 올바른 정보 입력됨 
+        }
+    }
+    
+    switch(n){
+       case -1:
+            // input : -1 => go to main page
+            user[s_n] = 1;
+            _main(s_n);
+            return;
+       case 0: // creat room
+            // ID 찾기 
+            // use thread_create 
+            page2_0(s_n);
+            break;
+       default : // join room
+            page2_n(s_n,n);
+            break;
+
+    }
+}
+
+void make_room(int s_n,int r_n, char* room_name){
+    int fd;
+    char route[1000];
+    char result[10000];
+    char inter1[] = "=====================================================\n";
+    char head[] = "HEAD COUNT : 1 (Game needs 5 members)\n"
+    char start[] = "START GAME : PLEASE ENTER '1'\n"
+    char quit[] = "QUIT ROOM : PLEASE ENTER '0'\n"
+    char tmp[1000];
+    char e_room_name[1000];
+    spritnf(tmp,"1. %s\n",user[s_n].name);
+    sprintf(e_room_name,"            %s\n",room_name);
+    strcat(result,inter1);
+    strcat(result,e_room_name);
+    strcat(result,inter1);
+    strcat(result,head);
+    strcat(result,start);
+    strcat(result,quit);
+    strcat(result,inter1);
+    strcat(result,tmp);
+    sprintf(route,"/home/ty/project/interface/rooms/%d.txt",r_n);
+    fd = open(route,O_TRUNC | O_WRONLY);
+    write(fd,result,strlen(result));
+
+    rooms[r_n] = 1; // 방을 만들면 만든 사람이 방에 들어가 있으므로 방 인원 1명으로 설정. 
+
+    close(fd);
+    bzero(route,sizeof(route));
+    bzero(result,sizeof(result));
+    bzero(inter1,sizeof(inter1));
+    bzero(head,sizeof(head));
+    bzero(start,sizeof(start));
+    bzero(quit,sizeof(quit));
+    bzero(tmp,sizeof(tmp));
+    bzero(e_room_name,sizeof(e_room_name));
+}
+    
+
+
+
+void page2_0(int s_n){
+    int r_n = room_num // 타 클라이언트가 동시에 방을 생성하면 룸 넘버가 겹칠 수 있기 때문에 room_creat 함수에 들어오는 순간 바로 저장 
+    int fd = open("/home/ty/project/interface/room_list.txt",O_RDWR | O_APPEND); // room list에 대한 정보를 저장하고 있는 파일 
+    int wd;
+    char input[1000];
+    char room_name[1000];
+    char file_name[1000];
+    char route[1000];
+    char info[] = "생성할 방 제목을 입력하세요\n";
+    char room_info[10000];
+    write(s_n,info,strlen(info));
+    read(s_n,input,sizeof(input));
+    
+    sprintf(room_name,"\n%d. %s",room_num, input); // 파일에 들어갈 방 제목 정보 
+    write(fd,room_name,strlen(room_name)); //  파일에 방 제목 삽입 
+    make_room(s_n,r_n,input);
+    sprintf(route,"/home/ty/project/interface/rooms/%d.txt",tmp_rn);
+    wd = open(route,O_RDONLY);
+    read(wd,room_info,sizeof(room_info));
+    write(s_n,room_info,strlen(room_info));
+    user[s_n].page = 3;
+
+    bzero(input,sizeof(input));
+    bzero(room_name,sizeof(room_name));
+    bzero(file_name,sizeof(file_name));
+    bzero(rout,sizeof(route));
+    bzero(info,sizeof(info));
+    bzero(room_info,sizeof(room_info));
+}
+
+void page2_n(int s_n,int n){
+    // TODO 방에 사용자가 꽉찬 경우 방에 들어가지 못하는 기능 추가
+    rooms[n]++;
+
+    
+
+    
+
+
+
+
+
