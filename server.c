@@ -33,7 +33,7 @@ void* selecter(void* socket_num);
 void page1(int n,int s_n);
 void page1_1(int socket_num);
 int login_id(int socket_num);
-int login_pw(int socket_num);
+int login_pw(int socket_num,char* s);
 void _page2(int socket_num);
 void page1_4(int socket_num);
 void page1_2(int s_n);
@@ -282,14 +282,13 @@ void page1(int n,int s_n){
     }
 }
 
+//<def>로그인 
 void page1_1(int socket_num){
     int length;
     char tmp[1024];
     char t1[1024];
     char t2[1024] = "ID를 입력해주세요 \n";
-    char t3[1024] = "PW를 입력해주세요 \n"; 
     char t4[1024] = "해당 ID가 존재하지 않습니다.\n";
-    char t5[1024] = "해당 PW가 존재하지 않습니다.\n";
     int fd = open("/home/ty/project/interface/login_page.txt",O_RDONLY);
     read(fd,tmp,1024-1);
     write(socket_num,tmp,strlen(tmp));
@@ -303,14 +302,7 @@ void page1_1(int socket_num){
         }
         break;
     }
-    while(1){
-        write(socket_num,t3,strlen(t3));
-        if(login_pw(socket_num) == 0){ 
-            write(socket_num,t5,sizeof(t5));
-            continue;
-        }
-        break;
-    }
+    user[socket_num].page = 2;
     _page2(socket_num);
 }
     
@@ -335,38 +327,69 @@ int login_id(int socket_num){
     while(fgets(tmp,sizeof(tmp),data) != NULL){
         tmp[strlen(tmp)-1] = '\0';
         if(strstr(tmp,id)!=NULL) {
+            login_pw(socket_num,tmp);
             fclose(data);
             bzero(input,sizeof(input));
+            bzero(id,sizeof(id));
+            bzero(tmp,sizeof(tmp));
+            bzero(null,sizeof(null));
             return 1;
         }
     } 
     fclose(data);
     bzero(input,sizeof(input));
+    bzero(id,sizeof(id));
+    bzero(tmp,sizeof(tmp));
+    bzero(null,sizeof(null));
+
     return 0;
 }
         
-int login_pw(int socket_num){
-    char pwd[100000] = "<pw>";
-    char tmp[1024];
-    char input[10000];
-    char null[3] = "\0";
+int login_pw(int socket_num, char* s){
+    printf("s is :%s\n",s);
 
+    char t3[1024] = "PW를 입력해주세요 \n"; 
+    char t5[1024] = "비밀번호를 다시 입력 해주세요.\n";
+    char pwd[1000] = "<pw>";
+    char tmp[1024];
+    char input[100];
+    char null[3] = "\0";
+    char* un;
+    
+    write(socket_num,t3,strlen(t3));
     read(socket_num,input,sizeof(input)); // 사용자에게서 pw  읽기 
     
-    FILE* data = fopen("/home/ty/project/database.txt","r");
     strncat(pwd,input,sizeof(pwd)-strlen(pwd)-1);
     strncat(pwd,null,sizeof(pwd)-strlen(pwd)-1);
-   
-    while(fgets(tmp,sizeof(tmp),data) != NULL){
-        tmp[strlen(tmp)-1] = '\0';
-        if(strstr(tmp,pwd)!=NULL){
+    printf("pwd is : %s\n",pwd);
+    while(1){
+        if(strstr(s,pwd)!=NULL){
             bzero(input,sizeof(input));
-            fclose(data);
+            un = strstr(s,"<un>");
+            printf("un is : %s\n",un);
+            strcpy(user[socket_num].name,un); // 로그인한 유저의 닉네임 붙여주기
+            printf("after user login user un is : %s\n",user[socket_num].name);
             return 1;
+            bzero(t3,sizeof(t3));
+            bzero(t5,sizeof(t5));
+            bzero(pwd,sizeof(pwd));
+            bzero(input,sizeof(input));
+            bzero(null,sizeof(null));
+        }
+        else{
+            bzero(input,sizeof(input));
+            bzero(pwd,sizeof(pwd));
+            write(socket_num,t5,strlen(t5));
+            read(socket_num,input,sizeof(input));
+            sprintf(pwd,"<pw>%s",input);
         }
     }
+    bzero(t3,sizeof(t3));
+    bzero(t5,sizeof(t5));
+    bzero(pwd,sizeof(pwd));
     bzero(input,sizeof(input));
-    fclose(data);
+    bzero(null,sizeof(null));
+
     return 0;
 }
 
@@ -622,8 +645,7 @@ void page2(int n,int s_n){
             _main(s_n);
             return;
        case 0: // creat room
-            // ID 찾기 
-            // use thread_create 
+            printf("this!\n");
             page2_0(s_n);
             break;
        default : // join room
@@ -652,7 +674,7 @@ void make_room(int s_n,int r_n){
     fwrite(quit,sizeof(char),strlen(quit),fp);
     fprintf(fp,"%s\n",inter1);
 
-    for(int i=1;i<=rooms[r_n].head;++i) fprintf(fp,"%d. %s\n",i,rooms[r_n].u_n[i]);
+    for(int i=1;i<=rooms[r_n].head;++i) fprintf(fp,"%d. %s\n",i,user[rooms[r_n].u_s[i-1]].name);
     
     bzero(route,sizeof(route));
     bzero(inter1,sizeof(inter1));
@@ -679,11 +701,14 @@ void page2_0(int s_n){
     read(s_n,input,sizeof(input));
     
     bzero(rooms[r_n].name, sizeof(rooms[r_n].name));
-    strcpy(rooms[r_n].name,room_name);
+    strcpy(rooms[r_n].name,input);
     
     sprintf(room_name,"\n%d. %s",r_n, input); // 파일에 들어갈 방 제목 정보 
     write(fd,room_name,strlen(room_name)); // room_list에 생성된 방의 정보 추가 
+    rooms[r_n].head = 1;
+    rooms[r_n].u_s[0] = s_n;
     make_room(s_n,r_n);
+    room_num++;
     sprintf(route,"/home/ty/project/interface/rooms/%d.txt",r_n);
     wd = open(route,O_RDONLY);
     read(wd,room_info,sizeof(room_info));
