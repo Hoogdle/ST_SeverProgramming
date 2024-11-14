@@ -48,6 +48,13 @@ struct users{
     int page; // 사용자가 머물고 있는 페이지 번호 표시 (1~4페이지 존재)
 };
 
+struct rooms{
+    char name[100]; // 방제목 
+    int head;
+    char u_n[5][100]; // 방에 들어온 유저의 닉네임을 저장할 변수 
+    int u_s[5]; // 방에 들어온 유저의 소켓번호를 저장할 변수 
+}
+
 // user에는 현재 서버에 '접속한' 사용자에 관한 정보 저장
 
 /*struct user_database{
@@ -66,7 +73,7 @@ struct users user[MAX_SOCKET];
 char buf[BUF_SIZE];
 int sign[BUF_SIZE] ={0,};
 int room_num = 1; // 할당할 방 번호 
-int rooms[MAX_SOCKET] = {0,}; // 방에 있는 사람의 숫자를 세기 위한 함수 
+int rooms[MAX_SOCKET]; // 방에 있는 사람의 숫자를 세기 위한 함수 
 
 fd_set fds;
 
@@ -622,41 +629,33 @@ void page2(int n,int s_n){
     }
 }
 
-void make_room(int s_n,int r_n, char* room_name){
-    int fd;
+// inroom에 대한 정보를 해당 {room_num}.txt 파일에 저장하는 함수 
+void make_room(int s_n,int r_n){
+    FILE *fp;
     char route[1000];
-    char result[10000];
     char inter1[] = "=====================================================\n";
-    char head[] = "HEAD COUNT : 1 (Game needs 5 members)\n"
+    //char head[] = "HEAD COUNT : 1 (Game needs 5 members)\n"
     char start[] = "START GAME : PLEASE ENTER '1'\n"
     char quit[] = "QUIT ROOM : PLEASE ENTER '0'\n"
-    char tmp[1000];
-    char e_room_name[1000];
-    spritnf(tmp,"1. %s\n",user[s_n].name);
-    sprintf(e_room_name,"            %s\n",room_name);
-    strcat(result,inter1);
-    strcat(result,e_room_name);
-    strcat(result,inter1);
-    strcat(result,head);
-    strcat(result,start);
-    strcat(result,quit);
-    strcat(result,inter1);
-    strcat(result,tmp);
     sprintf(route,"/home/ty/project/interface/rooms/%d.txt",r_n);
-    fd = open(route,O_TRUNC | O_WRONLY);
-    write(fd,result,strlen(result));
+    fp = fopen(route,"w");
+    
+    fwrite(inter1,sizeof(char),strlen(inter1),fp);
+    fprintf(fp,"            %s\n",rooms[r_n].name);
+    fprintf(fp,"%s\n\n",inter1);
+    fprintf(fp,"HEAD COUNT : %d (Game needs 5 members)\n",rooms[r_n].head);
+    fwrite(start,sizeof(char),strlen(strat),fp);
+    fwrite(quit,sizeof(char),strlen(quit),fp);
+    fprintf(fp,"%s\n",inter1);
 
-    rooms[r_n] = 1; // 방을 만들면 만든 사람이 방에 들어가 있으므로 방 인원 1명으로 설정. 
-
-    close(fd);
+    for(int i=1;i<=rooms.head;++i) fprintf(fp,"%d. %s\n",rooms[r_n].u_n[i]);
+    
     bzero(route,sizeof(route));
-    bzero(result,sizeof(result));
     bzero(inter1,sizeof(inter1));
-    bzero(head,sizeof(head));
     bzero(start,sizeof(start));
     bzero(quit,sizeof(quit));
-    bzero(tmp,sizeof(tmp));
-    bzero(e_room_name,sizeof(e_room_name));
+    
+    fclose(fp);
 }
     
 
@@ -675,9 +674,12 @@ void page2_0(int s_n){
     write(s_n,info,strlen(info));
     read(s_n,input,sizeof(input));
     
-    sprintf(room_name,"\n%d. %s",room_num, input); // 파일에 들어갈 방 제목 정보 
-    write(fd,room_name,strlen(room_name)); //  파일에 방 제목 삽입 
-    make_room(s_n,r_n,input);
+    bzero(rooms[r_n].name, sizeof(rooms[r_n].name));
+    strcpy(rooms[r_n].name,room_name);
+    
+    sprintf(room_name,"\n%d. %s",r_n, input); // 파일에 들어갈 방 제목 정보 
+    write(fd,room_name,strlen(room_name)); // room_list에 생성된 방의 정보 추가 
+    make_room(s_n,r_n);
     sprintf(route,"/home/ty/project/interface/rooms/%d.txt",tmp_rn);
     wd = open(route,O_RDONLY);
     read(wd,room_info,sizeof(room_info));
@@ -690,6 +692,8 @@ void page2_0(int s_n){
     bzero(rout,sizeof(route));
     bzero(info,sizeof(info));
     bzero(room_info,sizeof(room_info));
+    close(fd);
+    close(wd);
 }
 
 // 유저가 생성된 방에 입장하는 함수 
@@ -701,6 +705,8 @@ void page2_n(int s_n,int n){
 
     sprintf(route,"/home/ty/project/interface/rooms/%d.txt",n);
     fd = open(route,O_RDWR | O_APPEND);
+    fprintf(fd,"%d. %s\n",rooms[n],user[s_n].name);
+    
     
 
     
