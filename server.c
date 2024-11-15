@@ -44,6 +44,7 @@ void page2(int n,int s_n);
 void page2_0(int s_n);
 void page2_n(int s_n,int n);
 void make_room(int s_n,int r_n);
+void page2_r(int s_n);
 // argv[1]로 포트번호를 받음
 
 
@@ -239,6 +240,7 @@ void* selecter(void* socket_num){
         case 2:
             //user[s_n] = 2;
             page2(select,s_n);
+            sign[s_n] = 0;
             break;
         /* 
         case 3:
@@ -623,7 +625,9 @@ void page2(int n,int s_n){
     char info[] = "올바르지 않은 입력입니다. 다시 입력해주세요\n";
     // page2 함수 상단에서 이미 허용되지 않는 input을 처리했음 
     // 따라서 switch 아래의 함수들은 안심하고 각자의 역할을 하면 됨 
-    if(n>room_num || n < (-1)){
+    printf("in page2 n is : %d\n",n);
+
+    if( n>room_num|| (n < -1 && n!=-5)){
         char tmp[100];
         while(1){
             write(s_n,info,strlen(info));
@@ -647,6 +651,10 @@ void page2(int n,int s_n){
        case 0: // creat room
             printf("this!\n");
             page2_0(s_n);
+            break;
+       case -5:
+            printf("!\n");
+            page2_r(s_n);
             break;
        default : // join room
             page2_n(s_n,n);
@@ -739,17 +747,29 @@ void page2_n(int s_n,int n){
         return;
     }
     rooms[n].head++;
+    strcpy(rooms[n].u_n[rooms[n].head-1],user[s_n].name);
+    rooms[n].u_s[rooms[n].head-1] = s_n;
     make_room(s_n,n);
     sprintf(route,"/home/ty/project/interface/rooms/%d.txt",n);
     fd = open(route,O_RDONLY);
     read(fd,room_info,sizeof(room_info));
     for(int i=0;i<rooms[n].head;++i) write(rooms[n].u_s[i],room_info,strlen(room_info));
-    strcpy(rooms[n].u_n[rooms[n].head],user[s_n].name);
-    rooms[n].u_s[rooms[n].head] = s_n;
     user[s_n].page = 3;
+
+    bzero(info,sizeof(info));
+    bzero(route,sizeof(route));
+    bzero(room_info,sizeof(room_info));
+    printf("end of page2_n\n");
 }
 
-
+// 방 새로고침 함수 
+void page2_r(int s_n){
+    char info[1000];
+    int fd = open("/home/ty/project/interface/room_list.txt",O_RDONLY);
+    
+    read(fd,info,sizeof(info));
+    write(s_n,info,strlen(info));
+}
 
 
     
