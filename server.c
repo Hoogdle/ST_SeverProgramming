@@ -609,8 +609,8 @@ void page1_3(int s_n){
 void page1_0(int s_n){
     char info[] = "EXIT SERVER\n";
     write(s_n,info,strlen(info));
-    close(s_n);
     player_num--;
+    close(s_n);
     bzero(info,sizeof(info));
 }
 
