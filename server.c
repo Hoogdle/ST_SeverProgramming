@@ -45,12 +45,17 @@ void page2_0(int s_n);
 void page2_n(int s_n,int n);
 void make_room(int s_n,int r_n);
 void page2_r(int s_n);
+void reset_room();
+void page3(int n, int s_n);
+void page3_1(int s_n);
+void page3_0(int s_n);
 // argv[1]로 포트번호를 받음
 
 
 struct users{
     char name[20];
     int page; // 사용자가 머물고 있는 페이지 번호 표시 (1~4페이지 존재)
+    int room;
 };
 
 struct rooms{
@@ -92,7 +97,7 @@ int main(int argc, char* argv[]){
     int struct_len = sizeof(struct sockaddr_in);
     int socket_max;
     //data_base = (struct user_database*)malloc(sizeof(struct user_database));
-    
+    reset_room();    
 
     if (argc != 2){printf("Please insert 'Port' in argument\n"); exit(0);}
 
@@ -242,10 +247,12 @@ void* selecter(void* socket_num){
             page2(select,s_n);
             sign[s_n] = 0;
             break;
-        /* 
+         
         case 3:
-            page3(select);
+            page3(select,s_n);
+            sign[s_n] = 0;
             break;
+        /*
         case 4:
             page4(select);
             break; */
@@ -305,6 +312,7 @@ void page1_1(int socket_num){
         break;
     }
     user[socket_num].page = 2;
+    user[socket_num].room = 0; // 아직 방에 들어가지 않았으므로 이를 표시하는 0으로 설정. 
     _page2(socket_num);
 }
     
@@ -455,7 +463,7 @@ void page1_4(int socket_num){
     while(1){
         write(socket_num,info_un,strlen(info_un));
         read(socket_num,tmp,sizeof(tmp));
-        //tmp[strlen(tmp)] = '\n';
+        tmp[strlen(tmp)] = '\n';
         strcat(un,un_tag);
         strcat(un,tmp);
         if(check_dupli(un)==1){
@@ -481,6 +489,7 @@ void page1_4(int socket_num){
     bzero(un,sizeof(un));
     bzero(info,sizeof(info));
     bzero(finish,sizeof(finish));
+
 }
 
 // id_찾기 함수 
@@ -600,8 +609,8 @@ void page1_3(int s_n){
 void page1_0(int s_n){
     char info[] = "EXIT SERVER\n";
     write(s_n,info,strlen(info));
-    close(s_n);
     player_num--;
+    close(s_n);
     bzero(info,sizeof(info));
 }
 
@@ -715,6 +724,7 @@ void page2_0(int s_n){
     write(fd,room_name,strlen(room_name)); // room_list에 생성된 방의 정보 추가 
     rooms[r_n].head = 1;
     rooms[r_n].u_s[0] = s_n;
+    user[s_n].room = r_n; // 유저가 현재 r_n 번 방에 들어갔음을 유저 정보에 등록 
     make_room(s_n,r_n);
     room_num++;
     sprintf(route,"/home/ty/project/interface/rooms/%d.txt",r_n);
@@ -746,6 +756,7 @@ void page2_n(int s_n,int n){
         write(s_n,info,strlen(info));
         return;
     }
+    user[s_n].room = n; // 유저 정보에 현재 있는 방 표시 
     rooms[n].head++;
     strcpy(rooms[n].u_n[rooms[n].head-1],user[s_n].name);
     rooms[n].u_s[rooms[n].head-1] = s_n;
@@ -772,9 +783,120 @@ void page2_r(int s_n){
 }
 
 
+void reset_room(){
+    int fd = open("/home/ty/project/interface/room_list.txt",O_WRONLY|O_CREAT|O_TRUNC);
+    char info1[] = "=====================================================\n";
+    char info2[] = "                    ROOM LIST                        \n";
+    char info3[] = "CREAT ROOM : 0\n";
+    char info4[] = "ENTER ROOM : INSERT ROOM NUMBER\n";
+    char info5[] = "REFRESH : -5\n";
+    char info6[] = "EXIT : -1\n";
+    write(fd,info1,strlen(info1));
+    write(fd,info2,strlen(info2));
+    write(fd,info1,strlen(info1));
+    write(fd,info3,strlen(info3));
+    write(fd,info4,strlen(info4));
+    write(fd,info5,strlen(info5));
+    write(fd,info6,strlen(info6));
+    write(fd,info1,strlen(info1));
+    bzero(info1,sizeof(info1));
+    bzero(info2,sizeof(info2));
+    bzero(info3,sizeof(info3));
+    bzero(info4,sizeof(info4));
+    bzero(info5,sizeof(info5));
+    bzero(info6,sizeof(info6));
+    close(fd);
+}    
+
+
+void page3(int n, int s_n){
+    int r_n = user[s_n].room;
+
+    switch(n){
+        case 1:
+            page3_1(s_n);
+            break;
+        case 0:
+            page3_0(s_n);
+            break;
+    }
+}
+
+
+
+
+void page3_1(int s_n){
+    char info[] = "5명이 되어야 게임을 시작할 수 있습니다!\n";
+    char info2[] = "3초 뒤 게임을 시작합니다.\n";
+    int r_n = user[s_n].room;
+    int head = rooms[r_n].head;
+
+    if(head!=5){
+        write(s_n,info,strlen(info));
+        return;
+    }
     
+    for(int i=0;i<rooms[r_n].head;++i) write(rooms[r_n].u_s[i],info2,strlen(info2));
+    sleep(1);
+    for(int i=0;i<rooms[r_n].head;++i) write(rooms[r_n].u_s[i],"3",2);
+    sleep(1);
+    for(int i=0;i<rooms[r_n].head;++i) write(rooms[r_n].u_s[i],"2",2);
+    sleep(1);
+    for(int i=0;i<rooms[r_n].head;++i) write(rooms[r_n].u_s[i],"1",2);
+    
+    for(int i=0;i<rooms[r_n].head;++i) user[rooms[r_n].u_s[i]].page = 4; // game page 4;
+    
+    return;
+}
 
+// 유저가 방에서 나간 것을 처리하는 함수 
+void page3_0(int s_n){
+    int fd;
+    int r_n = user[s_n].room;
+    int head = rooms[r_n].head;
+    char route[1000];
+    char room_info[1000];
 
+    printf("room_num is :%d\n",r_n);
+    printf("room_head is :%d\n",head);
 
+    // 유저가 5번째 유저라면 head만 줄이고 나감 
+    if(rooms[r_n].u_s[head-1] == s_n){
+        bzero(rooms[r_n].u_n[head-1],sizeof(rooms[r_n].u_n[head-1]));
+        rooms[r_n].head--;
+        make_room(s_n,r_n);
+        sprintf(route,"/home/ty/project/interface/rooms/%d.txt",r_n);
+        fd = open(route,O_RDONLY);
+        read(fd, room_info, sizeof(room_info));
+        for(int i=0;i<head-1;++i) write(rooms[r_n].u_s[i],room_info,strlen(room_info));
+        user[s_n].page = 2;
+        page2_r(s_n);
 
+        return;
+    }
+    printf("for문 진입!\n");
+    for(int i=0;i<head-1;++i){
+        if(rooms[r_n].u_s[i] != s_n) continue;
+        // 나가려는 유저의 th를 찾은 경우 
+        for(int j=i;j<head-1;++j){
+            bzero(rooms[r_n].u_n[j],sizeof(rooms[r_n].u_n[j]));
+            strcpy(rooms[r_n].u_n[j],rooms[r_n].u_n[j+1]);
+            rooms[r_n].u_s[j] = rooms[r_n].u_s[j+1];
+        }
+        rooms[r_n].head--;
+        
+        make_room(s_n,r_n);
+        sprintf(route,"/home/ty/project/interface/rooms/%d.txt",r_n);
+        fd = open(route,O_RDONLY);
+        read(fd, room_info, sizeof(room_info));
+        for(int k=0;k<head-1;++k) write(rooms[r_n].u_s[k],room_info,strlen(room_info));
+        
+        user[s_n].page = 2;
+        page2_r(s_n);
+        bzero(route,sizeof(route));
+        bzero(room_info,sizeof(room_info));
+        return;         
+    }
+}       
+        
 
