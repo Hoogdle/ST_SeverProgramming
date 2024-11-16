@@ -45,6 +45,7 @@ void page2_0(int s_n);
 void page2_n(int s_n,int n);
 void make_room(int s_n,int r_n);
 void page2_r(int s_n);
+void reset_room();
 // argv[1]로 포트번호를 받음
 
 
@@ -92,7 +93,7 @@ int main(int argc, char* argv[]){
     int struct_len = sizeof(struct sockaddr_in);
     int socket_max;
     //data_base = (struct user_database*)malloc(sizeof(struct user_database));
-    
+    reset_room();    
 
     if (argc != 2){printf("Please insert 'Port' in argument\n"); exit(0);}
 
@@ -455,7 +456,7 @@ void page1_4(int socket_num){
     while(1){
         write(socket_num,info_un,strlen(info_un));
         read(socket_num,tmp,sizeof(tmp));
-        //tmp[strlen(tmp)] = '\n';
+        tmp[strlen(tmp)] = '\n';
         strcat(un,un_tag);
         strcat(un,tmp);
         if(check_dupli(un)==1){
@@ -481,6 +482,7 @@ void page1_4(int socket_num){
     bzero(un,sizeof(un));
     bzero(info,sizeof(info));
     bzero(finish,sizeof(finish));
+
 }
 
 // id_찾기 함수 
@@ -772,7 +774,30 @@ void page2_r(int s_n){
 }
 
 
-    
+void reset_room(){
+    int fd = open("/home/ty/project/interface/room_list.txt",O_WRONLY|O_CREAT|O_TRUNC);
+    char info1[] = "=====================================================\n";
+    char info2[] = "                    ROOM LIST                        \n";
+    char info3[] = "CREAT ROOM : 0\n";
+    char info4[] = "ENTER ROOM : INSERT ROOM NUMBER\n";
+    char info5[] = "REFRESH : -5\n";
+    char info6[] = "EXIT : -1\n";
+    write(fd,info1,strlen(info1));
+    write(fd,info2,strlen(info2));
+    write(fd,info1,strlen(info1));
+    write(fd,info3,strlen(info3));
+    write(fd,info4,strlen(info4));
+    write(fd,info5,strlen(info5));
+    write(fd,info6,strlen(info6));
+    write(fd,info1,strlen(info1));
+    bzero(info1,sizeof(info1));
+    bzero(info2,sizeof(info2));
+    bzero(info3,sizeof(info3));
+    bzero(info4,sizeof(info4));
+    bzero(info5,sizeof(info5));
+    bzero(info6,sizeof(info6));
+    close(fd);
+}    
 
 
 
