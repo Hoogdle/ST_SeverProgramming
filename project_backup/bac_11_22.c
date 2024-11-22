@@ -22,7 +22,7 @@
 #define MAX_LENGTH 512 // 오류 나면 하나 줄여보기
 #define MAX_SOCKET 1024
 #define BUF_SIZE 1024
-#define MAX_USERS 5
+
 int tcp_listen(int host, int port, int backlog);
 int max_socket_num();
 void error(char *msg){perror(msg); exit(1);}
@@ -49,20 +49,6 @@ void reset_room();
 void page3(int n, int s_n);
 void page3_1(int s_n);
 void page3_0(int s_n);
-//////////////////////////// in game //////////////////////////// 
-void send_to_all_clients(int r_n,char *msg);
-void assign_roles(int r_n);
-void start_discussion(int r_n);
-void process_voting_result(int r_n, int eject_index);
-void end_voting(int r_n);
-int get_alive_players_count(int r_n);
-void voting(int r_n);
-void night_mode(int r_n);
-int check_game_end(int r_n);
-void *client_handler(void *arg); // 제거 체크
-void game_loop(int r_n);
-
-
 // argv[1]로 포트번호를 받음
 
 
@@ -89,7 +75,6 @@ struct Clients{
     int in_voting;      // 투표 중인지 여부
     int is_dead;        // 사망 여부
     int in_night_mode;  // 밤 모드 여부 추가
-    int r_n; // 게임이 진행되는 방 넘버 
 };
 
 struct PlayerStatus{
@@ -98,13 +83,7 @@ struct PlayerStatus{
 };
 
 struct game_rooms{
-    struct Clients clients[5];
-    struct PlayerStatus player_status[5];
-    int num_clients;
-    time_t start_time;
-    pthread_mutex_t lock;
-    int vote_counts[5];
-    int votes_received;
+    
 };
 
 //////////////////////////////////////////////////
@@ -127,8 +106,7 @@ struct users user[MAX_SOCKET];
 char buf[BUF_SIZE];
 int sign[BUF_SIZE] ={0,};
 int room_num = 1; // 할당할 방 번호 
-struct rooms rooms[MAX_SOCKET]; // 방 정보를 간략하게 저장하는 구조체
-struct game_rooms game_rooms[MAX_SOCKET];
+struct rooms rooms[MAX_SOCKET]; // 방 정보를 간략하게 저장하는 구조체 
 
 fd_set fds;
 
@@ -297,6 +275,10 @@ void* selecter(void* socket_num){
             page3(select,s_n);
             sign[s_n] = 0;
             break;
+        /*
+        case 4:
+            page4(select);
+            break; */
     }
 }
 
@@ -871,7 +853,6 @@ void page3_1(int s_n){
     char info2[] = "3초 뒤 게임을 시작합니다.\n";
     int r_n = user[s_n].room;
     int head = rooms[r_n].head;
-    pthread_t thread_id[5];
 
     if(head!=5){
         write(s_n,info,strlen(info));
@@ -887,23 +868,6 @@ void page3_1(int s_n){
     for(int i=0;i<rooms[r_n].head;++i) write(rooms[r_n].u_s[i],"1",2);
     
     for(int i=0;i<rooms[r_n].head;++i) user[rooms[r_n].u_s[i]].page = 4; // game page 4;
-
-    // 게임시작 준비
-    game_rooms[r_n].num_clients = 5;
-    game_rooms[r_n].votes_received = 0;
-
-    // 게임 데이터 세팅(소켓번호, 닉네임)
-    for(int i =0;i<5;++i) game_rooms[r_n].vote_counts[i]=0;
-    for(int i =0;i<5;++i){
-        game_rooms[r_n].clients[i].sock = rooms[r_n].u_s[i];
-        game_rooms[r_n].clients[i].r_n = r_n;
-        strcpy(game_rooms[r_n].clients[i].nickname,rooms[r_n].u_n[i]);
-    }
-
-    for(int i=0;i<rooms[r_n].head;++i) pthread_create(&thread_id[i], NULL, client_handler, (void *)&game_rooms[r_n].clients[i]);
-    // 모든 함수에 r_n 추가!
-    game_loop(r_n);
-
     
     return;
 }
@@ -933,6 +897,7 @@ void page3_0(int s_n){
 
         return;
     }
+    printf("for문 진입!\n");
     for(int i=0;i<head-1;++i){
         if(rooms[r_n].u_s[i] != s_n) continue;
         // 나가려는 유저의 th를 찾은 경우 
@@ -955,434 +920,6 @@ void page3_0(int s_n){
         bzero(room_info,sizeof(room_info));
         return;         
     }
-}
-
-
-// 아래 부터는 'In game' 관련 코드
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void send_to_all_clients(int r_n, char *msg) {
-    for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
-        if (!game_rooms[r_n].clients[i].is_dead) {  // 살아있는 클라이언트에게만 전송
-            write(game_rooms[r_n].clients[i].sock, msg, strlen(msg));
-        }
-    }
-}
-
-void assign_roles(int r_n) {
-    int roles[MAX_USERS] = {0, 1, 2, 0, 0}; // 1명의 마피아, 1명의 경찰, 3명의 시민
-
-    // 역할을 무작위로 섞기
-    for (int i = 0; i < 5; i++) {
-        int rand_idx = rand() % MAX_USERS;
-        int temp = roles[i];
-        roles[i] = roles[rand_idx];
-        roles[rand_idx] = temp;
-    }
-
-    // 각 클라이언트에게 역할 할당
-    for (int i = 0; i < 5; i++) {
-        game_rooms[r_n].clients[i].role = roles[i];
-        char msg[BUF_SIZE];
-
-        switch (roles[i]) {
-            case 0:
-                snprintf(msg, sizeof(msg), "당신의 역할은 시민입니다.\n");
-                break;
-            case 1:
-                snprintf(msg, sizeof(msg), "당신의 역할은 마피아입니다.\n");
-                break;
-            case 2:
-                snprintf(msg, sizeof(msg), "당신의 역할은 경찰입니다.\n");
-                break;
-        }
-        write(game_rooms[r_n].clients[i].sock, msg, strlen(msg));
-    }
-}
-
-void start_discussion(int r_n) {
-    char msg[BUF_SIZE];
-    snprintf(msg, sizeof(msg), "\n===== Discussion Time =====\n[사회자] 토론 시간입니다. (60초)\n");
-    send_to_all_clients(r_n,msg);
-    
-    //TODO
-    // 60초 토론 시간
-    sleep(60);
-
-    snprintf(msg, sizeof(msg), "\n[사회자] 토론 시간이 종료되었습니다. 투표를 시작합니다.\n");
-    send_to_all_clients(r_n,msg);
-}
-void process_voting_result(int r_n, int eject_index) {
-    char msg[BUF_SIZE];
-
-    if (eject_index == -1) {
-        snprintf(msg, sizeof(msg), "[사회자] 투표 결과: 아무도 추방되지 않았습니다.\n");
-        send_to_all_clients(r_n,msg);
-    } else {
-        game_rooms[r_n].clients[eject_index].is_dead = 1;
-        game_rooms[r_n].player_status[eject_index].is_dead = 1;
-
-        snprintf(msg, sizeof(msg), "[사회자] 투표 결과: %s님이 추방되었습니다.\n",
-                game_rooms[r_n].clients[eject_index].nickname);
-        send_to_all_clients(r_n,msg);
-
-        // 추방된 사람에게도 결과 메시지 전송
-        snprintf(msg, sizeof(msg), "[사회자] 당신은 추방되었습니다.\n");
-        write(game_rooms[r_n].clients[eject_index].sock, msg, strlen(msg));
-
-        if (game_rooms[r_n].clients[eject_index].role == 1) {
-            snprintf(msg, sizeof(msg), "[사회자] 추방된 플레이어는 마피아였습니다!\n");
-        } else {
-            snprintf(msg, sizeof(msg), "[사회자] 추방된 플레이어는 마피아가 아니었습니다.\n");
-        }
-        send_to_all_clients(r_n,msg);
-    }
-}
-
-
-
-void end_voting(int r_n) {
-    int max_votes = 0;
-    int eject_index = -1;
-    int max_vote_count = 0;
-
-    // 투표 결과 집계
-    for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
-        if (game_rooms[r_n].vote_counts[i] > max_votes) {
-            max_votes = game_rooms[r_n].vote_counts[i];
-            eject_index = i;
-            max_vote_count = 1;
-        } else if (game_rooms[r_n].vote_counts[i] == max_votes && max_votes > 0) {
-            max_vote_count++;
-        }
-    }
-
-    // 투표 결과 처리
-    if (max_vote_count > 1) {
-        // 동률인 경우 아무도 추방되지 않음
-        process_voting_result(r_n,-1);
-    } else {
-        // 한 명이 추방됨
-        process_voting_result(r_n,eject_index);
-    }
-}
- int get_alive_players_count(int r_n) {
-    int count = 0;
-    for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
-        if (!game_rooms[r_n].player_status[i].is_dead) {
-            count++;
-        }
-    }
-    return count;
-}
-
-void voting(int r_n) {
-    printf("[DEBUG] 투표 시작\n");
-
-    // 투표 변수 초기화
-    memset(game_rooms[r_n].vote_counts, 0, sizeof(game_rooms[r_n].vote_counts));
-    game_rooms[r_n].votes_received = 0;
-
-    char msg[BUF_SIZE];
-    char voting_msg[BUF_SIZE];
-    snprintf(msg, sizeof(msg), "=== 투표를 시작합니다! ===\n투표를 진행하세요! 누구를 추방할까요? (1~%d 중 번호를 입력하세요)\n", game_rooms[r_n].num_clients);
-    send_to_all_clients(r_n,msg);
-
-    // 투표 대상 목록 출력
-    memset(voting_msg, 0, sizeof(voting_msg));
-    for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
-        if (!game_rooms[r_n].player_status[i].is_dead) {  // 살아있는 플레이어만 표시
-            snprintf(voting_msg + strlen(voting_msg), sizeof(voting_msg) - strlen(voting_msg),
-                     "%d. %s\n", i + 1, game_rooms[r_n].clients[i].nickname);
-        }
-    }
-    send_to_all_clients(r_n,voting_msg);
-    printf("[DEBUG] 투표 목록 전송 완료\n");
-
-    // 투표 모드 활성화
-    for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
-        if (!game_rooms[r_n].player_status[i].is_dead) {
-            game_rooms[r_n].clients[i].in_voting = 1;
-            game_rooms[r_n].clients[i].voted_for = -1;
-        }
-    }
-
-    // 투표 처리
-    while (game_rooms[r_n].votes_received < get_alive_players_count(r_n)) {
-        printf("[DEBUG] 현재 투표 수: %d, 필요 투표 수: %d\n", game_rooms[r_n].votes_received, get_alive_players_count(r_n));
-        sleep(2);  // CPU 사용률 감소를 위한 짧은 대기
-    }
-
-    printf("[DEBUG] 투표 종료, 결과 처리 시작\n");
-    end_voting(r_n);
-}
-
-void night_mode(int r_n) {
-    char msg[BUF_SIZE];
-    int mafia_choice = -1;
-
-    // 밤이 시작됨을 알림
-    snprintf(msg, sizeof(msg), "\n===== Night Time =====\n[사회자] 밤이 되었습니다.\n");
-    send_to_all_clients(r_n,msg);
-
-    // 경찰 차례 알림
-    snprintf(msg, sizeof(msg), "[사회자] 경찰이 조사를 시작합니다.\n");
-    send_to_all_clients(r_n,msg);
-
-    // 경찰 턴 처리
-    for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
-        if (game_rooms[r_n].clients[i].role == 2 && !game_rooms[r_n].clients[i].is_dead) {
-            char player_list[BUF_SIZE] = "=== 조사할 플레이어 선택 ===\n";
-            for (int j = 0; j < game_rooms[r_n].num_clients; j++) {
-                if (!game_rooms[r_n].clients[j].is_dead && i != j) {
-                    snprintf(player_list + strlen(player_list),
-                            BUF_SIZE - strlen(player_list),
-                            "%d. %s\n", j + 1, game_rooms[r_n].clients[j].nickname);
-                }
-            }
-            strcat(player_list, "번호를 입력하세요: ");
-            write(game_rooms[r_n].clients[i].sock, player_list, strlen(player_list));
-
-            // 경찰을 밤 모드로 설정
-            game_rooms[r_n].clients[i].in_night_mode = 1;
-            game_rooms[r_n].clients[i].voted_for = -1;
-
-            // 경찰의 선택을 기다림
-            while (game_rooms[r_n].clients[i].in_night_mode) {
-                usleep(100000);  // 0.1초 대기
-            }
-
-            int police_choice = game_rooms[r_n].clients[i].voted_for;
-            if (police_choice >= 0 && police_choice < game_rooms[r_n].num_clients) {
-                char result[BUF_SIZE];
-                const char* role_str;
-
-                // 역할을 문자열로 변환
-                switch(game_rooms[r_n].clients[police_choice].role) {
-                    case 0:
-                        role_str = "시민";
-                        break;
-                    case 1:
-                        role_str = "마피아";
-                        break;
-                    case 2:
-                        role_str = "경찰";
-                        break;
-                    default:
-                        role_str = "알 수 없음";
-                        break;
-                }
-
-                if (game_rooms[r_n].clients[police_choice].role == 1) {
-                    snprintf(result, sizeof(result),
-                            "[조사 결과] %s님은 마피아입니다.\n"
-                            "조사 대상의 역할: %s\n",
-                            game_rooms[r_n].clients[police_choice].nickname, role_str);
-                } else {
-                    snprintf(result, sizeof(result),
-                            "[조사 결과] %s님은 마피아가 아닙니다.\n"
-                            "조사 대상의 역할: %s\n",
-                            game_rooms[r_n].clients[police_choice].nickname, role_str);
-                }
-                write(game_rooms[r_n].clients[i].sock, result, strlen(result));
-
-                // 경찰의 조사가 끝났음을 알림
-                snprintf(msg, sizeof(msg), "[사회자] 경찰이 조사를 마쳤습니다.\n");
-                send_to_all_clients(r_n,msg);
-            }
-        }
-    }
-
-    // 마피아 차례 알림
-    snprintf(msg, sizeof(msg), "[사회자] 마피아가 희생자를 선택합니다.\n");
-    send_to_all_clients(r_n,msg);
-
-    // 마피아 턴 처리
-    for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
-        if (game_rooms[r_n].clients[i].role == 1 && !game_rooms[r_n].clients[i].is_dead) {
-            char player_list[BUF_SIZE] = "=== 희생자 선택 ===\n선택 가능한 플레이어:\n";
-            for (int j = 0; j < game_rooms[r_n].num_clients; j++) {
-                if (!game_rooms[r_n].clients[j].is_dead && i != j) {
-                    snprintf(player_list + strlen(player_list),
-                            BUF_SIZE - strlen(player_list),
-                            "%d. %s\n", j + 1, game_rooms[r_n].clients[j].nickname);
-                }
-            }
-            strcat(player_list, "번호를 입력하세요: ");
-            write(game_rooms[r_n].clients[i].sock, player_list, strlen(player_list));
-
-            // 마피아를 밤 모드로 설정
-            game_rooms[r_n].clients[i].in_night_mode = 1;
-            game_rooms[r_n].clients[i].voted_for = -1;
-
-            // 마피아의 선택을 기다림
-            while (game_rooms[r_n].clients[i].in_night_mode) {
-                usleep(100000);  // 0.1초 대기
-            }
-
-            mafia_choice = game_rooms[r_n].clients[i].voted_for;
-            if (mafia_choice >= 0 && mafia_choice < game_rooms[r_n].num_clients) {
-                // 마피아가 선택을 완료했음을 알림
-                snprintf(msg, sizeof(msg), "[사회자] 마피아가 선택을 마쳤습니다.\n");
-                send_to_all_clients(r_n,msg);
-                break;
-            }
-        }
-    }
-
-    // 밤이 끝나감을 알림
-    snprintf(msg, sizeof(msg), "[사회자] 밤이 끝나갑니다...\n");
-    sleep(2);  // 극적인 효과를 위한 짧은 대기
-    send_to_all_clients(r_n,msg);
-
-    // 밤 결과 처리
-    if (mafia_choice != -1) {
-        game_rooms[r_n].clients[mafia_choice].is_dead = 1;
-        game_rooms[r_n].player_status[mafia_choice].is_dead = 1;
-        snprintf(msg, sizeof(msg),
-                "\n===== Morning =====\n[사회자] %s님이 밤사이 사망하셨습니다.\n",
-                game_rooms[r_n].clients[mafia_choice].nickname);
-        send_to_all_clients(r_n,msg);
-    } else {
-        send_to_all_clients(r_n,"\n===== Morning =====\n[사회자] 아무도 사망하지 않았습니다.\n");
-    }
-}
-int check_game_end(int r_n) {
-    int mafia_count = 0;
-    int citizen_count = 0;
-
-    for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
-        if (!game_rooms[r_n].clients[i].is_dead) {
-            if (game_rooms[r_n].clients[i].role == 1) {
-                mafia_count++;
-            } else {
-                citizen_count++;
-            }
-        }
-    }
-
-    if (mafia_count == 0) {
-        // 시민 승리 메시지, 모든 클라이언트에게 전송
-        for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
-            if (!game_rooms[r_n].clients[i].is_dead) {
-                write(game_rooms[r_n].clients[i].sock, "\n[사회자] 시민 팀이 승리했습니다!\n", strlen("\n[사회자] 시민 팀이 승리했습니다!\n"));
-            } else {
-                // 사망한 플레이어에게도 결과 전송
-                write(game_rooms[r_n].clients[i].sock, "\n[사회자] 시민 팀이 승리했습니다! (게임 종료)\n", strlen("\n[사회자] 시민 팀이 승리했습니다! (게임 종료)\n"));
-            }
-        }
-        return 1;
-    } else if (mafia_count >= citizen_count) {
-        // 마피아 승리 메시지, 모든 클라이언트에게 전송
-        for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
-            if (!game_rooms[r_n].clients[i].is_dead) {
-                write(game_rooms[r_n].clients[i].sock, "\n[사회자] 마피아가 승리했습니다!\n", strlen("\n[사회자] 마피아가 승리했습니다!\n"));
-            } else {
-                // 사망한 플레이어에게도 결과 전송
-                write(game_rooms[r_n].clients[i].sock, "\n[사회자] 마피아가 승리했습니다! (게임 종료)\n", strlen("\n[사회자] 마피아가 승리했습니다! (게임 종료)\n"));
-            }
-        }
-        return 1;
-    }
-
-    return 0;
-}
-
-// TODO 수정 해야함
-void *client_handler(void *arg) {
-    struct Clients *client = (struct Clients *)arg;
-    char msg[BUF_SIZE];
-    int len;
-    int r_n = client -> r_n;
-
-    // 닉네임 받기
-    //len = read(client->sock, msg, sizeof(msg) - 1);
-    //if (len > 0) {
-    //    msg[len] = '\0';
-    //    msg[strcspn(msg, "\n")] = 0;
-        //strncpy(client->nickname, msg, sizeof(client->nickname) - 1);
-
-        //char welcome_msg[BUF_SIZE];
-        //snprintf(welcome_msg, sizeof(welcome_msg), "[알림] %s님이 게임에 입장하셨습니다.\n", client->nickname);
-        //send_to_all_clients(r_n,welcome_msg);
-    //}
-
-    while (1) {
-        len = read(client->sock, msg, sizeof(msg) - 1);
-        if (len <= 0) {
-            char disconnect_msg[BUF_SIZE];
-            snprintf(disconnect_msg, sizeof(disconnect_msg), "[알림] %s님이 퇴장하셨습니다.\n", client->nickname);
-            send_to_all_clients(r_n,disconnect_msg);
-            break;
-        }
-
-        msg[len] = '\0';
-        msg[strcspn(msg, "\n")] = 0;
-
-        if (client->in_night_mode) {
-            // 밤 모드 투표 처리
-            int choice = atoi(msg) - 1;
-            if (choice >= 0 && choice < game_rooms[r_n].num_clients) {
-                // 선택 완료 메시지를 클라이언트에게 보냄
-                write(client->sock, "선택이 완료되었습니다.\n", strlen("선택이 완료되었습니다.\n"));
-                client->voted_for = choice;
-                client->in_night_mode = 0;  // 투표 완료 후 밤 모드 해제
-            }
-        }
-        else if (client->in_voting) {
-            // 일반 투표 처리
-            int vote = atoi(msg) - 1;
-            if (vote >= 0 && vote < game_rooms[r_n].num_clients) {
-                pthread_mutex_lock(&game_rooms[r_n].lock);
-                if (client->voted_for == -1) {
-                    game_rooms[r_n].vote_counts[vote]++;
-                    client->voted_for = vote;
-                    game_rooms[r_n].votes_received++;
-
-                    char vote_msg[BUF_SIZE];
-                    snprintf(vote_msg, sizeof(vote_msg), "[알림] %s님이 투표하셨습니다.\n", client->nickname);
-                    send_to_all_clients(r_n,vote_msg);
-                }
-                pthread_mutex_unlock(&game_rooms[r_n].lock);
-            }
-        } else {
-            // 일반 채팅 메시지 처리
-            if (!client->is_dead) {
-                char chat_msg[BUF_SIZE];
-                snprintf(chat_msg, sizeof(chat_msg), "[%s]: %s\n", client->nickname, msg);
-                send_to_all_clients(r_n,chat_msg);
-            }
-        }
-    }
-
-    close(client->sock);
-    return NULL;
-}
-void game_loop(int r_n) {
-    // 게임 초기화
-    memset(game_rooms[r_n].player_status, 0, sizeof(game_rooms[r_n].player_status));
-
-    // 역할 배정
-    assign_roles(r_n);
-
-    while (1) {
-        start_discussion(r_n);    // 낮 토론
-        if (check_game_end(r_n)) break;
-
-        voting(r_n);             // 투표
-        if (check_game_end(r_n)) break;
-
-        night_mode(r_n);         // 밤 모드
-        if (check_game_end(r_n)) break;
-    }
-}
-
-
+}       
         
-// server_handler 부분 일단은 지움
 
-//TODO
-// 1. 로그인 기능 손보기
-// 2. 채팅 인터페이스 이쁘게
-// 3. 닉네임 손보기 <un> 제거
-// 4. 게임 종료 후 방목록으로 가게끔
