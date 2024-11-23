@@ -39,7 +39,8 @@ void page1_4(int socket_num);
 void page1_2(int s_n);
 void page1_3(int s_n);
 void page1_0(int s_n);
-int check_dupli(char* input);
+int check_dupli_id(char* input);
+int check_dupli_un(char* input);
 void page2(int n,int s_n);
 void page2_0(int s_n);
 void page2_n(int s_n,int n);
@@ -60,7 +61,7 @@ void voting(int r_n);
 void night_mode(int r_n);
 int check_game_end(int r_n);
 void *client_handler(void *arg); // 제거 체크
-void game_loop(int r_n);
+void game_loop(pthread_t *thread_id,int r_n);
 
 
 // argv[1]로 포트번호를 받음
@@ -70,6 +71,7 @@ struct users{
     char name[20];
     int page; // 사용자가 머물고 있는 페이지 번호 표시 (1~4페이지 존재)
     int room;
+    int in_game;
 };
 
 struct rooms{
@@ -105,6 +107,7 @@ struct game_rooms{
     pthread_mutex_t lock;
     int vote_counts[5];
     int votes_received;
+    int game_status;
 };
 
 //////////////////////////////////////////////////
@@ -129,6 +132,7 @@ int sign[BUF_SIZE] ={0,};
 int room_num = 1; // 할당할 방 번호 
 struct rooms rooms[MAX_SOCKET]; // 방 정보를 간략하게 저장하는 구조체
 struct game_rooms game_rooms[MAX_SOCKET];
+int close_socket[MAX_SOCKET] = {0,};
 
 fd_set fds;
 
@@ -153,18 +157,27 @@ int main(int argc, char* argv[]){
     //pthread_create(&thread, NULL, utility, (void *)NULL);
     printf("Hello Server!\n");
     while(1){
+        socket_max = 0;
         FD_ZERO(&fds); // 모든 FD_NUM에 대하여 0으로 세팅 
         FD_SET(listen_socket, &fds); // FD_SET은 select에서 '검사할' FD_NUM을 세팅 
-        for (int i = 0; i < player_num; i++){FD_SET(player[i], &fds);} // 현재 존재하는 모든 플레이어들에 대하여 FD_NUM 세팅 
+        for (int i = 0; i < player_num; i++){
+            if(close_socket[player[i]]==0 && user[player[i]].in_game==0) FD_SET(player[i], &fds);
+            } // 현재 존재하는 모든 플레이어들에 대하여 FD_NUM 세팅 
 
         //socket_max = max_socket_num(player,player_num);
-        socket_max += max_socket_num(); // select에서 검사 범위를 지정하기 위해 갖고 있는 소켓 중 가장 큰 FD_NUM 확인 
+        socket_max += max_socket_num(); // select에서 검사 범위를 지정하기 위해 갖고 있는 소켓 중 가장 큰 FD_NUM 확인
+        printf("[DEBUG] MAX SOCKET : %d\n",socket_max);
         if(select(socket_max, &fds, NULL, NULL, NULL) < 0){error("select error");} // fd의 변화를 감지하는 함수, 이를 통해 클라이언트의 접속을 감지할 수 있음. 여기서부터!
         
 
         if(FD_ISSET(listen_socket, &fds)){ // 접속을 담당하는 소켓에 1이 세팅 => 어떤 사용자가 서버에 접속함
         // 사용자의 접속이 없었다면 위 if문에서 listen_socket을 검사했을 때 FD_NUM = 0, 따라서 if문에 걸리지 않고 다음 블럭으로 넘어감. 
             player_socket_num = accept(listen_socket,(struct sockaddr*)&addr, &struct_len); // 해당 사용자의 FD_NUM을 player_socket_num에 accpet() 인자로 전달한 addr에는 주소를 받음 
+            for(int i=0;i<socket_max;++i){ 
+                if(close_socket[player_socket_num] == 1){
+                    close_socket[player_socket_num] = 0;
+                }
+            }
             if(player_socket_num == -1){error("accept error");}
             printf("new player\n");
             add_player(player_socket_num,&addr); // 사용자 추가 부분 => player_socket_num을 player 소켓 배열에 저장, 주소 저장 
@@ -175,7 +188,7 @@ int main(int argc, char* argv[]){
         for(int i=0; i<player_num; ++i){
             if(FD_ISSET(player[i],&fds)){
                 printf("there is some signal!\n");
-                if(sign[player[i]] == 1) continue;
+                if(sign[player[i]] == 1) continue; 
                 sign[player[i]]=1;
                 printf("thread created\n");
                 pthread_create(&thread[player[i]],NULL,selecter,(void*)&player[i]);
@@ -275,6 +288,8 @@ void* selecter(void* socket_num){
     printf("socket_num : %d\n",s_n);
     int page;
     int select;
+    printf("in select close data : %d\n",close_socket[s_n]);
+    if(close_socket[s_n] == 1) return NULL;
     read(s_n,input,sizeof(input));
 
     page = user[s_n].page;
@@ -353,7 +368,8 @@ void page1_1(int socket_num){
         break;
     }
     user[socket_num].page = 2;
-    user[socket_num].room = 0; // 아직 방에 들어가지 않았으므로 이를 표시하는 0으로 설정. 
+    user[socket_num].room = 0; // 아직 방에 들어가지 않았으므로 이를 표시하는 0으로 설정.
+    user[socket_num].in_game = 0;
     _page2(socket_num);
 }
     
@@ -367,6 +383,12 @@ int login_id(int socket_num){
     char tmp[1024];
     char input[1000];
     char null[3] = "\0";
+    char cmp[1024];
+    char cmp_id[] = "<id>";
+    char cmp_pw[] = "<pw>";
+    int gap;
+    char* start;
+    char* end;
 
     read(socket_num,input,sizeof(input)); // 사용자에게서 pw  읽기 
 
@@ -376,22 +398,34 @@ int login_id(int socket_num){
    
 
     while(fgets(tmp,sizeof(tmp),data) != NULL){
+        printf("id is : %s\n", id);
+        printf("tmp is : %s\n",tmp);
         tmp[strlen(tmp)-1] = '\0';
-        if(strstr(tmp,id)!=NULL) {
+        start = strstr(tmp,cmp_id);
+        end = strstr(tmp,cmp_pw);
+        gap = (end - start)/sizeof(char);
+        printf("gap is : %d\n",gap);
+        strncpy(cmp,tmp,gap);
+        printf("cmp is : %s\n",cmp);
+        if(strcmp(id,cmp)==0) {
             login_pw(socket_num,tmp);
             fclose(data);
             bzero(input,sizeof(input));
             bzero(id,sizeof(id));
             bzero(tmp,sizeof(tmp));
             bzero(null,sizeof(null));
+            bzero(cmp,sizeof(cmp));
             return 1;
         }
+        bzero(tmp,sizeof(tmp));
+        bzero(cmp,sizeof(cmp));
     } 
     fclose(data);
     bzero(input,sizeof(input));
     bzero(id,sizeof(id));
     bzero(tmp,sizeof(tmp));
     bzero(null,sizeof(null));
+    bzero(cmp,sizeof(cmp));
 
     return 0;
 }
@@ -403,8 +437,14 @@ int login_pw(int socket_num, char* s){
     char t5[1024] = "비밀번호를 다시 입력 해주세요.\n";
     char pwd[1000] = "<pw>";
     char tmp[1024];
+    char cmp[1024];
     char input[100];
     char null[3] = "\0";
+    char cmp_pw[] = "<pw>";
+    char cmp_un[] = "<un>";
+    char* start;
+    char* end;
+    int gap;
     char* un;
     
     write(socket_num,t3,strlen(t3));
@@ -413,12 +453,17 @@ int login_pw(int socket_num, char* s){
     strncat(pwd,input,sizeof(pwd)-strlen(pwd)-1);
     strncat(pwd,null,sizeof(pwd)-strlen(pwd)-1);
     printf("pwd is : %s\n",pwd);
+    start = strstr(s,cmp_pw);
+    end = strstr(s,cmp_un);
+    gap = (end-start)/sizeof(char);
+    strncpy(cmp,start,gap);
+    printf("cmp is : %s\n",cmp);
     while(1){
-        if(strstr(s,pwd)!=NULL){
+        if(strcmp(cmp,pwd)==0){
             bzero(input,sizeof(input));
             un = strstr(s,"<un>");
             printf("un is : %s\n",un);
-            strcpy(user[socket_num].name,un); // 로그인한 유저의 닉네임 붙여주기
+            strcpy(user[socket_num].name,un+4); // 로그인한 유저의 닉네임 붙여주기
             printf("after user login user un is : %s\n",user[socket_num].name);
             return 1;
             bzero(t3,sizeof(t3));
@@ -454,12 +499,13 @@ void page1_4(int socket_num){
     char info_un[] = "닉네임을 입력해주세요\n";
     char info_un2[] = "중복되는 닉네임 입니다. 다른 닉네임을 입력해주세요\n"; 
     char finish[] = "회원가입이 완료 되었습니다!\n";
-    char id[1000];
-    char pw[1000];
-    char un[1000];
+    char id[100];
+    char pw[100];
+    char un[100];
     char id_tag[] = "<id>";
     char pw_tag[] = "<pw>";
     char un_tag[] = "<un>";
+    char result[1000];
     
 
     int data = open("/home/ty/project/database.txt",O_RDWR | O_APPEND);
@@ -477,8 +523,8 @@ void page1_4(int socket_num){
         read(socket_num,tmp,sizeof(tmp));
         strcat(id,id_tag);
         strcat(id,tmp);
-        if(check_dupli(id)==1){ 
-            write(data,id,strlen(id));
+        if(check_dupli_id(id)==1){ 
+            strcpy(result,id);
             bzero(tmp,sizeof(tmp));
             bzero(id,sizeof(id));
             break;
@@ -495,7 +541,7 @@ void page1_4(int socket_num){
     read(socket_num,tmp,sizeof(tmp));
     strcat(pw,pw_tag);
     strcat(pw,tmp);
-    write(data,pw,strlen(pw));
+    strcat(result,pw);
     printf("tmp is : %s\n",tmp);
     bzero(tmp,sizeof(tmp));
     printf("saved pw : %s\n",pw);
@@ -507,8 +553,10 @@ void page1_4(int socket_num){
         tmp[strlen(tmp)] = '\n';
         strcat(un,un_tag);
         strcat(un,tmp);
-        if(check_dupli(un)==1){
-            write(data,un,strlen(un));
+        if(check_dupli_un(un)==1){
+            strcat(result,un);
+            printf("result is : %s\n",result);
+            write(data,result,strlen(result));
             bzero(un,sizeof(un));
             bzero(tmp,sizeof(tmp));
             break;
@@ -530,6 +578,7 @@ void page1_4(int socket_num){
     bzero(un,sizeof(un));
     bzero(info,sizeof(info));
     bzero(finish,sizeof(finish));
+    bzero(result,sizeof(result));
 
 }
 
@@ -651,22 +700,57 @@ void page1_0(int s_n){
     char info[] = "EXIT SERVER\n";
     write(s_n,info,strlen(info));
     player_num--;
+    close_socket[s_n] = 1;
+    printf("in exit close data : %d\n",close_socket[s_n]);
     close(s_n);
     bzero(info,sizeof(info));
 }
 
-int check_dupli(char* input){
+int check_dupli_id(char* input){
+    char* start;
+    char* end;
+    int gap;
     char tmp[1000];
+    char cmp[1000];
     FILE* data = fopen("/home/ty/project/database.txt","r");
     while(fgets(tmp,sizeof(tmp),data) != NULL){
         tmp[strlen(tmp)-1] = '\0';
-        if(strstr(tmp,input)!=NULL){
+        start = strstr(tmp,"<id>");
+        end = strstr(tmp,"<pw>");
+        gap = (end-start)/sizeof(char);
+        strncpy(cmp,tmp,gap);
+        printf("test cmp is : %s\n",cmp);
+        if(strcmp(cmp,tmp)==0){
             fclose(data);
             bzero(tmp,sizeof(tmp));
             return 0; // 중복된 경우 리턴 0 
         }
+        bzero(tmp,sizeof(tmp));
+        bzero(cmp,sizeof(cmp));
     }
-    bzero(tmp,sizeof(tmp));
+    fclose(data);
+    return 1; // 중복되지 않은 경우 리턴 1 
+}
+
+int check_dupli_un(char* input){
+    char* start;
+    int gap;
+    char tmp[1000];
+    char cmp[1000];
+    FILE* data = fopen("/home/ty/project/database.txt","r");
+    while(fgets(tmp,sizeof(tmp),data) != NULL){
+        printf("debug tmp : %s\n",tmp);
+        start = strstr(tmp,"<un>");
+        strcpy(cmp,start);
+        printf("cmp is : %s\n",cmp);
+        if(strcmp(cmp,input)==0){
+            fclose(data);
+            bzero(tmp,sizeof(tmp));
+            return 0; // 중복된 경우 리턴 0 
+        }
+        bzero(tmp,sizeof(tmp));
+        bzero(cmp,sizeof(cmp));
+    }
     fclose(data);
     return 1; // 중복되지 않은 경우 리턴 1 
 }
@@ -764,6 +848,7 @@ void page2_0(int s_n){
     sprintf(room_name,"\n%d. %s",r_n, input); // 파일에 들어갈 방 제목 정보 
     write(fd,room_name,strlen(room_name)); // room_list에 생성된 방의 정보 추가 
     rooms[r_n].head = 1;
+    strncpy(rooms[r_n].u_n[0],user[s_n].name,sizeof(user[s_n].name));
     rooms[r_n].u_s[0] = s_n;
     user[s_n].room = r_n; // 유저가 현재 r_n 번 방에 들어갔음을 유저 정보에 등록 
     make_room(s_n,r_n);
@@ -898,11 +983,12 @@ void page3_1(int s_n){
         game_rooms[r_n].clients[i].sock = rooms[r_n].u_s[i];
         game_rooms[r_n].clients[i].r_n = r_n;
         strcpy(game_rooms[r_n].clients[i].nickname,rooms[r_n].u_n[i]);
+        sign[rooms[r_n].u_s[i]] = 1;
+        user[game_rooms[r_n].clients[i].sock].in_game = 1; 
     }
-
     for(int i=0;i<rooms[r_n].head;++i) pthread_create(&thread_id[i], NULL, client_handler, (void *)&game_rooms[r_n].clients[i]);
     // 모든 함수에 r_n 추가!
-    game_loop(r_n);
+    game_loop(thread_id,r_n);
 
     
     return;
@@ -1007,7 +1093,7 @@ void start_discussion(int r_n) {
     
     //TODO
     // 60초 토론 시간
-    sleep(60);
+    sleep(2);
 
     snprintf(msg, sizeof(msg), "\n[사회자] 토론 시간이 종료되었습니다. 투표를 시작합니다.\n");
     send_to_all_clients(r_n,msg);
@@ -1029,6 +1115,7 @@ void process_voting_result(int r_n, int eject_index) {
         // 추방된 사람에게도 결과 메시지 전송
         snprintf(msg, sizeof(msg), "[사회자] 당신은 추방되었습니다.\n");
         write(game_rooms[r_n].clients[eject_index].sock, msg, strlen(msg));
+        
 
         if (game_rooms[r_n].clients[eject_index].role == 1) {
             snprintf(msg, sizeof(msg), "[사회자] 추방된 플레이어는 마피아였습니다!\n");
@@ -1262,26 +1349,50 @@ int check_game_end(int r_n) {
     }
 
     if (mafia_count == 0) {
+        char room_info[1000];
+        int fd = open("/home/ty/project/interface/room_list.txt",O_RDONLY);
+        read(fd,room_info,sizeof(room_info));
         // 시민 승리 메시지, 모든 클라이언트에게 전송
         for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
             if (!game_rooms[r_n].clients[i].is_dead) {
                 write(game_rooms[r_n].clients[i].sock, "\n[사회자] 시민 팀이 승리했습니다!\n", strlen("\n[사회자] 시민 팀이 승리했습니다!\n"));
+                user[game_rooms[r_n].clients[i].sock].page = 2; // 방 목록으로 보내기
+                sign[game_rooms[r_n].clients[i].sock] = 0;
+                write(game_rooms[r_n].clients[i].sock,room_info,strlen(room_info));
             } else {
                 // 사망한 플레이어에게도 결과 전송
                 write(game_rooms[r_n].clients[i].sock, "\n[사회자] 시민 팀이 승리했습니다! (게임 종료)\n", strlen("\n[사회자] 시민 팀이 승리했습니다! (게임 종료)\n"));
+                user[game_rooms[r_n].clients[i].sock].page = 2; // 방 목록으로 보내기
+                sign[game_rooms[r_n].clients[i].sock] = 0;
+                write(game_rooms[r_n].clients[i].sock,room_info,strlen(room_info));
+
             }
         }
+        game_rooms[r_n].game_status=0;
         return 1;
     } else if (mafia_count >= citizen_count) {
+        char room_info[1000];
+        int fd = open("/home/ty/project/interface/room_list.txt",O_RDONLY);
+        read(fd,room_info,sizeof(room_info));
+
         // 마피아 승리 메시지, 모든 클라이언트에게 전송
         for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
             if (!game_rooms[r_n].clients[i].is_dead) {
                 write(game_rooms[r_n].clients[i].sock, "\n[사회자] 마피아가 승리했습니다!\n", strlen("\n[사회자] 마피아가 승리했습니다!\n"));
+                user[game_rooms[r_n].clients[i].sock].page = 2; // 방 목록으로 보내기
+                sign[game_rooms[r_n].clients[i].sock] = 0;
+                write(game_rooms[r_n].clients[i].sock,room_info,strlen(room_info));
+
             } else {
                 // 사망한 플레이어에게도 결과 전송
                 write(game_rooms[r_n].clients[i].sock, "\n[사회자] 마피아가 승리했습니다! (게임 종료)\n", strlen("\n[사회자] 마피아가 승리했습니다! (게임 종료)\n"));
+                user[game_rooms[r_n].clients[i].sock].page = 2; // 방 목록으로 보내기
+                sign[game_rooms[r_n].clients[i].sock] = 0;
+                write(game_rooms[r_n].clients[i].sock,room_info,strlen(room_info));
+
             }
         }
+        game_rooms[r_n].game_status=0;
         return 1;
     }
 
@@ -1308,13 +1419,17 @@ void *client_handler(void *arg) {
     //}
 
     while (1) {
+        printf("[DEBUG] client[%d] username : %s\n",client->sock,client->nickname);
+        printf("[DEBUG] client[%d] is_dead : %d\n",client->sock,client->is_dead);
+        printf("[DEBUG] client[%d] night : %d\n",client->sock,client->in_night_mode);
+        printf("[DEBUG] client[%d] voting : %d\n",client->sock,client->in_voting);
         len = read(client->sock, msg, sizeof(msg) - 1);
-        if (len <= 0) {
-            char disconnect_msg[BUF_SIZE];
-            snprintf(disconnect_msg, sizeof(disconnect_msg), "[알림] %s님이 퇴장하셨습니다.\n", client->nickname);
-            send_to_all_clients(r_n,disconnect_msg);
-            break;
-        }
+        //if (len <= 0) {
+            //char disconnect_msg[BUF_SIZE];
+            //snprintf(disconnect_msg, sizeof(disconnect_msg), "[알림] %s님이 퇴장하셨습니다.\n", client->nickname);
+            //send_to_all_clients(r_n,disconnect_msg);
+            //break;
+        //}
 
         msg[len] = '\0';
         msg[strcspn(msg, "\n")] = 0;
@@ -1341,6 +1456,7 @@ void *client_handler(void *arg) {
 
                     char vote_msg[BUF_SIZE];
                     snprintf(vote_msg, sizeof(vote_msg), "[알림] %s님이 투표하셨습니다.\n", client->nickname);
+                    client->in_voting = 0;
                     send_to_all_clients(r_n,vote_msg);
                 }
                 pthread_mutex_unlock(&game_rooms[r_n].lock);
@@ -1348,17 +1464,16 @@ void *client_handler(void *arg) {
         } else {
             // 일반 채팅 메시지 처리
             if (!client->is_dead) {
-                char chat_msg[BUF_SIZE];
+                char chat_msg[1500];
                 snprintf(chat_msg, sizeof(chat_msg), "[%s]: %s\n", client->nickname, msg);
                 send_to_all_clients(r_n,chat_msg);
             }
         }
     }
 
-    close(client->sock);
     return NULL;
 }
-void game_loop(int r_n) {
+void game_loop(pthread_t thread_id[5],int r_n) {
     // 게임 초기화
     memset(game_rooms[r_n].player_status, 0, sizeof(game_rooms[r_n].player_status));
 
@@ -1375,6 +1490,11 @@ void game_loop(int r_n) {
         night_mode(r_n);         // 밤 모드
         if (check_game_end(r_n)) break;
     }
+    for(int i=0; i<5; ++i){ 
+    pthread_cancel(thread_id[i]);
+    user[game_rooms[r_n].clients[i].sock].in_game = 0; 
+    }
+
 }
 
 
@@ -1382,7 +1502,8 @@ void game_loop(int r_n) {
 // server_handler 부분 일단은 지움
 
 //TODO
-// 1. 로그인 기능 손보기
 // 2. 채팅 인터페이스 이쁘게
-// 3. 닉네임 손보기 <un> 제거
 // 4. 게임 종료 후 방목록으로 가게끔
+
+// 5. stage1이후 채팅이 안됨
+// 6. 마피아한테 죽은 사람 처리 문구 작성 
