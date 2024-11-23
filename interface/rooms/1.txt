@@ -3,12 +3,13 @@
 =====================================================
 
 
-HEAD COUNT : 4 (Game needs 5 members)
+HEAD COUNT : 5 (Game needs 5 members)
 START GAME : PLEASE ENTER '1'
 QUIT ROOM : PLEASE ENTER '0'
 =====================================================
 
-1. 2
-2. 3
-3. 4
-4. 5
+1. 1
+2. 2
+3. 3
+4. 4
+5. 5

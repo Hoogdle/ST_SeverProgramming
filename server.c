@@ -62,7 +62,7 @@ void night_mode(int r_n);
 int check_game_end(int r_n);
 void *client_handler(void *arg); // 제거 체크
 void game_loop(pthread_t *thread_id,int r_n);
-
+void change_room_list(int r_n);
 
 // argv[1]로 포트번호를 받음
 
@@ -78,7 +78,8 @@ struct rooms{
     char name[100]; // 방제목 
     int head;
     char u_n[5][100]; // 방에 들어온 유저의 닉네임을 저장할 변수 
-    int u_s[5]; // 방에 들어온 유저의 소켓번호를 저장할 변수 
+    int u_s[5]; // 방에 들어온 유저의 소켓번호를 저장할 변수
+    int del;
 };
 
 /////////////////////////////////////////////////////
@@ -842,7 +843,6 @@ void page2_0(int s_n){
     write(s_n,info,strlen(info));
     read(s_n,input,sizeof(input));
     
-    bzero(rooms[r_n].name, sizeof(rooms[r_n].name));
     strcpy(rooms[r_n].name,input);
     
     sprintf(room_name,"\n%d. %s",r_n, input); // 파일에 들어갈 방 제목 정보 
@@ -986,6 +986,8 @@ void page3_1(int s_n){
         sign[rooms[r_n].u_s[i]] = 1;
         user[game_rooms[r_n].clients[i].sock].in_game = 1; 
     }
+
+    change_room_list(r_n);
     for(int i=0;i<rooms[r_n].head;++i) pthread_create(&thread_id[i], NULL, client_handler, (void *)&game_rooms[r_n].clients[i]);
     // 모든 함수에 r_n 추가!
     game_loop(thread_id,r_n);
@@ -993,7 +995,6 @@ void page3_1(int s_n){
     
     return;
 }
-
 // 유저가 방에서 나간 것을 처리하는 함수 
 void page3_0(int s_n){
     int fd;
@@ -1016,8 +1017,19 @@ void page3_0(int s_n){
         for(int i=0;i<head-1;++i) write(rooms[r_n].u_s[i],room_info,strlen(room_info));
         user[s_n].page = 2;
         page2_r(s_n);
-
-        return;
+        close(fd);
+        
+        printf("[DEBUG] ROOMS HEAD IS : %d\n",rooms[r_n].head);
+        if(rooms[r_n].head == 0){
+            sprintf(route,"/home/ty/project/interface/rooms/%d.txt",r_n);
+            remove(route);
+            bzero(route,sizeof(route));
+            bzero(room_info,sizeof(room_info));
+            change_room_list(r_n);
+            user[s_n].page = 2;
+            page2_r(s_n);
+                        return;    
+        }
     }
     for(int i=0;i<head-1;++i){
         if(rooms[r_n].u_s[i] != s_n) continue;
@@ -1034,12 +1046,24 @@ void page3_0(int s_n){
         fd = open(route,O_RDONLY);
         read(fd, room_info, sizeof(room_info));
         for(int k=0;k<head-1;++k) write(rooms[r_n].u_s[k],room_info,strlen(room_info));
+        close(fd);
         
         user[s_n].page = 2;
         page2_r(s_n);
         bzero(route,sizeof(route));
         bzero(room_info,sizeof(room_info));
-        return;         
+        break;         
+    }
+    printf("[DEBUG] ROOMS HEAD IS : %d\n",rooms[r_n].head);
+    if(rooms[r_n].head == 0){
+            sprintf(route,"/home/ty/project/interface/rooms/%d.txt",r_n);
+            remove(route);
+            bzero(route,sizeof(route));
+            bzero(room_info,sizeof(room_info));
+            change_room_list(r_n);
+            user[s_n].page = 2;
+            page2_r(s_n);
+            return;    
     }
 }
 
@@ -1349,23 +1373,16 @@ int check_game_end(int r_n) {
     }
 
     if (mafia_count == 0) {
-        char room_info[1000];
-        int fd = open("/home/ty/project/interface/room_list.txt",O_RDONLY);
-        read(fd,room_info,sizeof(room_info));
-        // 시민 승리 메시지, 모든 클라이언트에게 전송
+                // 시민 승리 메시지, 모든 클라이언트에게 전송
         for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
             if (!game_rooms[r_n].clients[i].is_dead) {
-                write(game_rooms[r_n].clients[i].sock, "\n[사회자] 시민 팀이 승리했습니다!\n", strlen("\n[사회자] 시민 팀이 승리했습니다!\n"));
-                user[game_rooms[r_n].clients[i].sock].page = 2; // 방 목록으로 보내기
-                sign[game_rooms[r_n].clients[i].sock] = 0;
-                write(game_rooms[r_n].clients[i].sock,room_info,strlen(room_info));
-            } else {
+                write(game_rooms[r_n].clients[i].sock, "\n[사회자] 시민 팀이 승리했습니다!\n게임에서 나가시려면 EXIT를 입력해주세요.\n", 
+                        strlen("\n[사회자] 시민 팀이 승리했습니다!\n게임에서 나가시려면 EXIT를 입력해주세요.\n"));
+                            } 
+            else {
                 // 사망한 플레이어에게도 결과 전송
-                write(game_rooms[r_n].clients[i].sock, "\n[사회자] 시민 팀이 승리했습니다! (게임 종료)\n", strlen("\n[사회자] 시민 팀이 승리했습니다! (게임 종료)\n"));
-                user[game_rooms[r_n].clients[i].sock].page = 2; // 방 목록으로 보내기
-                sign[game_rooms[r_n].clients[i].sock] = 0;
-                write(game_rooms[r_n].clients[i].sock,room_info,strlen(room_info));
-
+                write(game_rooms[r_n].clients[i].sock, "\n[사회자] 시민 팀이 승리했습니다! (게임 종료)\n게임에서 나가시려면 EXIT를 입력해주세요.\n", 
+                        strlen("\n[사회자] 시민 팀이 승리했습니다! (게임 종료)\n게임에서 나가시려면 EXIT를 입력해주세요.\n"));
             }
         }
         game_rooms[r_n].game_status=0;
@@ -1378,18 +1395,14 @@ int check_game_end(int r_n) {
         // 마피아 승리 메시지, 모든 클라이언트에게 전송
         for (int i = 0; i < game_rooms[r_n].num_clients; i++) {
             if (!game_rooms[r_n].clients[i].is_dead) {
-                write(game_rooms[r_n].clients[i].sock, "\n[사회자] 마피아가 승리했습니다!\n", strlen("\n[사회자] 마피아가 승리했습니다!\n"));
-                user[game_rooms[r_n].clients[i].sock].page = 2; // 방 목록으로 보내기
-                sign[game_rooms[r_n].clients[i].sock] = 0;
-                write(game_rooms[r_n].clients[i].sock,room_info,strlen(room_info));
-
+                write(game_rooms[r_n].clients[i].sock, "\n[사회자] 마피아가 승리했습니다!\n게임에서 나가시려면 EXIT를 입력해주세요.\n",
+                        strlen("\n[사회자] 마피아가 승리했습니다!\n게임에서 나가시려면 EXIT를 입력해주세요.\n"));
+                
             } else {
                 // 사망한 플레이어에게도 결과 전송
-                write(game_rooms[r_n].clients[i].sock, "\n[사회자] 마피아가 승리했습니다! (게임 종료)\n", strlen("\n[사회자] 마피아가 승리했습니다! (게임 종료)\n"));
-                user[game_rooms[r_n].clients[i].sock].page = 2; // 방 목록으로 보내기
-                sign[game_rooms[r_n].clients[i].sock] = 0;
-                write(game_rooms[r_n].clients[i].sock,room_info,strlen(room_info));
-
+                write(game_rooms[r_n].clients[i].sock, "\n[사회자] 마피아가 승리했습니다! (게임 종료)\n게임에서 나가시려면 EXIT를 입력해주세요.\n",
+                        strlen("\n[사회자] 마피아가 승리했습니다! (게임 종료)\n게임에서 나가시려면 EXIT를 입력해주세요.\n"));
+                
             }
         }
         game_rooms[r_n].game_status=0;
@@ -1404,7 +1417,11 @@ void *client_handler(void *arg) {
     struct Clients *client = (struct Clients *)arg;
     char msg[BUF_SIZE];
     int len;
+    char exit[] = "EXIT";
     int r_n = client -> r_n;
+    char room_info[1000];
+    int fd = open("/home/ty/project/interface/room_list.txt",O_RDONLY);
+    read(fd,room_info,sizeof(room_info));
 
     // 닉네임 받기
     //len = read(client->sock, msg, sizeof(msg) - 1);
@@ -1419,11 +1436,14 @@ void *client_handler(void *arg) {
     //}
 
     while (1) {
+        bzero(msg,sizeof(msg));
         printf("[DEBUG] client[%d] username : %s\n",client->sock,client->nickname);
         printf("[DEBUG] client[%d] is_dead : %d\n",client->sock,client->is_dead);
         printf("[DEBUG] client[%d] night : %d\n",client->sock,client->in_night_mode);
         printf("[DEBUG] client[%d] voting : %d\n",client->sock,client->in_voting);
         len = read(client->sock, msg, sizeof(msg) - 1);
+
+        if(strcmp(msg,exit)==0) break;
         //if (len <= 0) {
             //char disconnect_msg[BUF_SIZE];
             //snprintf(disconnect_msg, sizeof(disconnect_msg), "[알림] %s님이 퇴장하셨습니다.\n", client->nickname);
@@ -1468,9 +1488,14 @@ void *client_handler(void *arg) {
                 snprintf(chat_msg, sizeof(chat_msg), "[%s]: %s\n", client->nickname, msg);
                 send_to_all_clients(r_n,chat_msg);
             }
-        }
+        }   
     }
-
+    printf("here i am \n");
+    user[client->sock].page = 2; // 방 목록으로 보내기
+    sign[client->sock] = 0;
+    user[client->sock].in_game = 0; 
+    write(client->sock,room_info,strlen(room_info));
+    
     return NULL;
 }
 void game_loop(pthread_t thread_id[5],int r_n) {
@@ -1490,15 +1515,33 @@ void game_loop(pthread_t thread_id[5],int r_n) {
         night_mode(r_n);         // 밤 모드
         if (check_game_end(r_n)) break;
     }
-    for(int i=0; i<5; ++i){ 
-    pthread_cancel(thread_id[i]);
-    user[game_rooms[r_n].clients[i].sock].in_game = 0; 
-    }
-
 }
 
 
-        
+void change_room_list(int r_n){
+    rooms[r_n].del = 1;
+    int fd = open("/home/ty/project/interface/room_template.txt",O_RDONLY);
+    FILE* fp = fopen("/home/ty/project/interface/room_list.txt","w");
+    char data[1000];
+    bzero(data,sizeof(data));
+    read(fd,data,sizeof(data));
+    printf("debug data is : \n%s\n",data);
+    fprintf(fp,"%s",data);
+    printf("room_num is : %d\n",room_num);
+    printf("r_n is :%d\n",r_n);
+    printf("room0 : %s\n",rooms[0].name);
+    printf("room1 : %s\n",rooms[1].name);
+    printf("room2 : %s\n",rooms[2].name);
+    for(int i=1;i<=room_num-1;++i){
+        if(rooms[r_n].del==1) continue;
+        printf("room name is :%s\n",rooms[i].name);
+        fprintf(fp,"%d. %s\n",i,rooms[i].name);
+    }
+    room_num;
+    close(fd);
+    fclose(fp);
+    bzero(data,sizeof(data));
+}
 // server_handler 부분 일단은 지움
 
 //TODO
