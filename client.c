@@ -36,7 +36,6 @@ int main(int argc, char* argv[]){
             fgets(msg,sizeof(msg),stdin);
             msg[strlen(msg)-1] = '\0';
             write(s,msg,strlen(msg));
-            printf("send msg : %s\n",msg);
         }
         if(FD_ISSET(s,&fds)){
             length = read(s,msg,sizeof(msg));
