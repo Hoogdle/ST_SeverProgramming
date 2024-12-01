@@ -678,7 +678,7 @@ int check_dupli_id(char* input){
         end = strstr(tmp,"<pw>");
         gap = (end-start)/sizeof(char);
         strncpy(cmp,tmp,gap);
-        if(strcmp(cmp,tmp)==0){
+        if(strcmp(input,cmp)==0){
             fclose(data);
             bzero(tmp,sizeof(tmp));
             return 0; // 중복된 경우 리턴 0 
