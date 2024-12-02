@@ -31,25 +31,25 @@ void add_player(int socket_num, struct sockaddr_in *client_addr);
 void _main();
 void chatting();
 void* selecter(void* socket_num);
+int login_pw(int socket_num,char* s);
+int login_id(int socket_num);
 void page1(int n,int s_n);
 void page1_1(int socket_num);
-int login_id(int socket_num);
-int login_pw(int socket_num,char* s);
-void page1_4(int socket_num);
 void page1_2(int s_n);
 void page1_3(int s_n);
+void page1_4(int socket_num);
 void page1_0(int s_n);
 int check_dupli_id(char* input);
 int check_dupli_un(char* input);
 void page2(int n,int s_n);
 void page2_0(int s_n);
 void page2_n(int s_n,int n);
-void make_room(int s_n,int r_n);
 void page2_r(int s_n);
+void make_room(int s_n,int r_n);
 void reset_room();
 void page3(int n, int s_n);
-void page3_1(int s_n);
 void page3_0(int s_n);
+void page3_1(int s_n);
 void change_room_list(int r_n);
 
 // 인게임 관련 함수 모음 
@@ -564,6 +564,8 @@ void page1_2(int s_n){
         char* p;
         char* g;
         int gap;
+        printf("tmp : %s\n",tmp);
+        printf("un : %s\n",un);
         if((strstr(tmp,un))!=NULL){
             // tag를 사용하여 database에서 아이디를 추출함 
             p = strstr(tmp,id);
@@ -572,6 +574,7 @@ void page1_2(int s_n){
             strncat(returns,tmp+(4*sizeof(char)),gap-4);
             returns[strlen(returns)] = '\n';
             returns[strlen(returns)] = '\0';
+            printf("returns : %s\n",returns);
             send(s_n,info_2,strlen(info_2),0);
             send(s_n,returns,strlen(returns),0);
             bzero(un,sizeof(un));
@@ -620,7 +623,9 @@ void page1_3(int s_n){
         char* p;
         char* g;
         int gap;
-        if((strstr(tmp,un))!=NULL){
+        printf("tmp : %s\n",tmp);
+        printf("un : %s\n",un);
+        if((strstr(tmp,id))!=NULL){
             // tag를 사용하여 pw를 추출
             p = strstr(tmp,pw);
             g = strstr(tmp,un);
@@ -1132,7 +1137,7 @@ void start_discussion(int r_n) {
     send_to_all_clients(r_n,msg);
     
     // 60초 토론 시간
-    sleep(60);
+    sleep(3);
 
     snprintf(msg, sizeof(msg), "\n[사회자] 토론 시간이 종료되었습니다. 투표를 시작합니다.\n");
     send_to_all_clients(r_n,msg);
