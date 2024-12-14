@@ -1137,7 +1137,7 @@ void start_discussion(int r_n) {
     send_to_all_clients(r_n,msg);
     
     // 60초 토론 시간
-    sleep(3);
+    sleep(60);
 
     snprintf(msg, sizeof(msg), "\n[사회자] 토론 시간이 종료되었습니다. 투표를 시작합니다.\n");
     send_to_all_clients(r_n,msg);
@@ -1445,7 +1445,7 @@ void *client_handler(void *arg) {
 
     while (1) {
         bzero(msg,sizeof(msg));
-        len = read(client->sock, msg, sizeof(msg) - 1);
+        len = recv(client->sock, msg, sizeof(msg) - 1,0);
 
         if(strcmp(msg,exit)==0) break;
         msg[len] = '\0';
